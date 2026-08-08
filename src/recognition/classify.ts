@@ -29,11 +29,18 @@ const PAD_COST = 0.95
 /** 大文字と小文字の形がほぼ同じで、字形からは区別できない文字 */
 export const CASE_EQUIVALENT = new Set(['c', 'k', 'o', 's', 'u', 'v', 'w', 'x', 'z'])
 
+export interface JudgeLetterOptions {
+  /** 大文字・小文字のどちらで書いても正解にする（テスト用。2026-08-08 第5回フィードバック） */
+  caseInsensitive?: boolean
+}
+
 /** expected に対して「同じ文字」とみなす字形のリスト（c → [c, C] など） */
-export function equivalentForms(expected: string): string[] {
+export function equivalentForms(expected: string, caseInsensitive = false): string[] {
   const lower = expected.toLowerCase()
+  const upper = expected.toUpperCase()
+  if (caseInsensitive && lower !== upper) return [lower, upper]
   if (CASE_EQUIVALENT.has(lower)) {
-    return expected === lower ? [lower, lower.toUpperCase()] : [expected, lower]
+    return expected === lower ? [lower, upper] : [expected, lower]
   }
   return [expected]
 }
@@ -288,13 +295,14 @@ export function judgeExpectedLetter(
   boxSizePx: number,
   expected: string,
   cfg: JudgeConfig = DEFAULT_JUDGE_CONFIG,
-  candidates?: string[]
+  candidates?: string[],
+  opts: JudgeLetterOptions = {}
 ): ExpectedLetterJudge {
   const res = classifyLetter(strokesPx, boxSizePx, cfg, candidates)
   if (res.ranking.length === 0) {
     return { correct: false, expectedCost: Infinity, shapeOk: false, clearlyDifferent: false, recognized: null, ranking: [] }
   }
-  const forms = new Set(equivalentForms(expected))
+  const forms = new Set(equivalentForms(expected, opts.caseInsensitive))
   const expectedCand = res.ranking.filter((c) => forms.has(c.letter)).sort((a, b) => a.cost - b.cost)[0]
   const best = res.ranking[0]
   const expectedCost = expectedCand?.cost ?? Infinity
@@ -338,7 +346,8 @@ export function judgeWord(
   perBoxStrokes: Pt[][][],
   boxSizePx: number,
   expectedWord: string,
-  cfg: JudgeConfig = DEFAULT_JUDGE_CONFIG
+  cfg: JudgeConfig = DEFAULT_JUDGE_CONFIG,
+  opts: JudgeLetterOptions = {}
 ): WordJudgeResult {
   const letters: ExpectedLetterJudge[] = []
   let recognized = ''
@@ -358,7 +367,7 @@ export function judgeWord(
       recognized += '_'
       continue
     }
-    const j = judgeExpectedLetter(strokes, boxSizePx, expectedWord[i], cfg)
+    const j = judgeExpectedLetter(strokes, boxSizePx, expectedWord[i], cfg, undefined, opts)
     letters.push(j)
     recognized += j.recognized ?? '_'
   }

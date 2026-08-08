@@ -3084,3 +3084,26 @@ body {
     max-width: 180px;
   }
 }
+
+/* ---------- 絵日記ツールボタン（2026-08-08 第5回） ---------- */
+.tool-btn {
+  border: 2px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 13px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.tool-btn-active {
+  border-color: var(--primary);
+  background: #e8f6ec;
+  color: var(--primary-dark);
+}
+
+.diary-helper-card .lookup-item {
+  border-bottom: 1px dashed var(--line);
+}

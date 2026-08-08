@@ -46,6 +46,33 @@ export interface RecognizedText {
 }
 
 /**
+ * 複数行の英文キャンバスからテキストを推定する（2026-08-08 第5回: 英文エリアの複数行化）。
+ * 各ストロークを重心のy座標で行に割り当て、行ごとに認識して連結する。
+ */
+export function recognizeTextLines(strokesPx: Pt[][], canvasHeightPx: number, rows: number): RecognizedText {
+  const rowHeight = canvasHeightPx / Math.max(rows, 1)
+  const byRow: Pt[][][] = Array.from({ length: rows }, () => [])
+  for (const s of strokesPx) {
+    if (s.length === 0) continue
+    const cy = s.reduce((acc, p) => acc + p.y, 0) / s.length
+    const row = Math.min(rows - 1, Math.max(0, Math.floor(cy / rowHeight)))
+    // 行ローカル座標へ（xはそのまま、yは行の上端基準）
+    byRow[row].push(s.map((p) => ({ x: p.x, y: p.y - row * rowHeight })))
+  }
+  const parts: string[] = []
+  const letters: string[] = []
+  for (const rowStrokes of byRow) {
+    if (rowStrokes.length === 0) continue
+    const r = recognizeTextLine(rowStrokes, rowHeight)
+    if (r.text.trim()) {
+      parts.push(r.text.trim())
+      letters.push(...r.letters)
+    }
+  }
+  return { text: parts.join(' '), letters }
+}
+
+/**
  * 行キャンバスの手書きストロークからテキストを推定する。
  * @param strokesPx 行キャンバス座標のストローク列
  * @param rowHeightPx 行キャンバスの高さ（4線ガイドの descender 線がおよそ下端）

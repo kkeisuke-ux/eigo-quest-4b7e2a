@@ -71,6 +71,8 @@ export interface StoredStroke {
   color?: string
   /** ストローク太さ（未設定は既定） */
   width?: number
+  /** 描画ツール（pen / brush / eraser） */
+  tool?: 'pen' | 'brush' | 'eraser'
 }
 
 /** 筆記サンプル（認識しきい値調整用。設定→判定デバッグで人間ラベル付け） */

@@ -24,8 +24,12 @@ export function strokesToDataUrl(
   ctx.lineJoin = 'round'
   for (const s of strokes) {
     if (s.points.length === 0) continue
+    const tool = s.tool ?? 'pen'
+    ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over'
+    ctx.globalAlpha = tool === 'brush' ? 0.45 : 1
+    const base = s.width ?? lineWidth
     ctx.strokeStyle = s.color ?? color
-    ctx.lineWidth = (s.width ?? lineWidth) * scale
+    ctx.lineWidth = (tool === 'brush' ? base * 2.6 : tool === 'eraser' ? base * 3.4 : base) * scale
     ctx.beginPath()
     ctx.moveTo(s.points[0][0] * scale, s.points[0][1] * scale)
     for (let i = 1; i < s.points.length; i++) {
@@ -36,6 +40,8 @@ export function strokesToDataUrl(
     }
     ctx.stroke()
   }
+  ctx.globalCompositeOperation = 'source-over'
+  ctx.globalAlpha = 1
   return canvas.toDataURL('image/png')
 }
 
@@ -55,10 +61,14 @@ export function printDiary(entry: DiaryEntryRecord, opts: DiaryPdfOptions): bool
   const dateLabel = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
   const drawingH = entry.drawingSize > 0 ? 0.72 : 0.72
   const drawingUrl = strokesToDataUrl(entry.drawing, entry.drawingSize || 800, 1200, Math.round(1200 * drawingH), 4)
-  const textUrl =
-    entry.textStrokes.length > 0
-      ? strokesToDataUrl(entry.textStrokes, entry.textBoxWidth || 800, 1200, Math.round((1200 * 150) / Math.max(entry.textBoxWidth || 800, 1)), 3.5)
-      : null
+  // 英文エリアの高さは実際に書かれた範囲から決める（1行時代の旧データと3行データの両対応）
+  let textUrl: string | null = null
+  if (entry.textStrokes.length > 0) {
+    const srcW = entry.textBoxWidth || 800
+    const maxY = Math.max(...entry.textStrokes.flatMap((s) => s.points.map((p) => p[1])), srcW * 0.15)
+    const hRatio = Math.min(0.5, (maxY + srcW * 0.03) / srcW)
+    textUrl = strokesToDataUrl(entry.textStrokes, srcW, 1200, Math.round(1200 * hRatio), 3.5)
+  }
 
   const html = `<!doctype html>
 <html lang="ja">

@@ -27,6 +27,8 @@ export interface InkStroke {
   color?: string
   /** ストローク基準太さ（未設定は描画時のbaseWidth） */
   width?: number
+  /** 描画ツール（絵日記用）。pen=通常 / brush=太く半透明の筆 / eraser=消しゴム */
+  tool?: 'pen' | 'brush' | 'eraser'
 }
 
 export interface InkDiagnostics {

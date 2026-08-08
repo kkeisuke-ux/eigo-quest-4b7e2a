@@ -22,6 +22,29 @@ export function RuleLines({ className }: { className?: string }) {
   )
 }
 
+/** 複数行の英語罫線（絵日記の英文エリア用）。rows行ぶんの4線を等間隔に描く */
+export function TextRuleLines({ rows, className }: { rows: number; className?: string }) {
+  const { top, mid, base, descender } = GUIDE_LINES
+  const band = 100 / rows
+  const lines = Array.from({ length: rows }, (_, i) => {
+    const y = (v: number) => i * band + (v / 100) * band
+    return (
+      <g key={i}>
+        <line x1="1.5" y1={y(top)} x2="98.5" y2={y(top)} stroke="#cfd8e6" strokeWidth="0.5" />
+        <line x1="1.5" y1={y(mid)} x2="98.5" y2={y(mid)} stroke="#cfd8e6" strokeWidth="0.5" strokeDasharray="1.6 1.4" />
+        <line x1="1.5" y1={y(base)} x2="98.5" y2={y(base)} stroke="#9fb3d1" strokeWidth="0.7" />
+        <line x1="1.5" y1={y(descender)} x2="98.5" y2={y(descender)} stroke="#eef1f6" strokeWidth="0.4" />
+      </g>
+    )
+  })
+  return (
+    <svg className={className} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+      <rect x="0.5" y="0.5" width="99" height="99" fill="none" stroke="#d8cfc0" strokeWidth="0.7" rx="2" />
+      {lines}
+    </svg>
+  )
+}
+
 interface Props {
   letter: string
   className?: string

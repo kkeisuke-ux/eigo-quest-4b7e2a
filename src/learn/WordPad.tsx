@@ -31,6 +31,8 @@ export interface WordPadProps {
    * （○だった文字はそのまま残る。仕様フィードバック 2026-08-08）
    */
   retryToken?: number
+  /** 大文字・小文字のどちらで書いても正解にする（テスト用） */
+  caseInsensitive?: boolean
 }
 
 interface BoxRef {
@@ -47,6 +49,7 @@ export function WordPad({
   extraFooter,
   perLetterMarks = null,
   retryToken = 0,
+  caseInsensitive = false,
 }: WordPadProps) {
   const letters = useMemo(() => [...word], [word])
   const boxRefs = useMemo<BoxRef[]>(() => letters.map(() => ({ current: null })), [letters])
@@ -112,7 +115,7 @@ export function WordPad({
     setJudged(true)
     const boxSize = boxRefs.find((r) => r.current != null)?.current?.getSize() ?? 300
     const allStrokes = letters.flatMap((_, i) => boxRefs[i].current?.getStrokes() ?? [])
-    const res = judgeWord(perBox, boxSize, word, cfg)
+    const res = judgeWord(perBox, boxSize, word, cfg, { caseInsensitive })
     lastJudgeRef.current = res
     onJudged(res, perBox, allStrokes, boxSize)
   }

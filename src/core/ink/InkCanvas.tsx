@@ -26,6 +26,8 @@ interface Props {
   allowTouchInk?: boolean
   penColor?: string
   baseWidth?: number
+  /** 描画ツール（絵日記用）。brushは太く半透明、eraserは消しゴム */
+  penTool?: 'pen' | 'brush' | 'eraser'
   /** 高さ/幅の比。1=正方形（既定）。絵日記の横長キャンバス等で使用 */
   aspectRatio?: number
   /** 十字リーダー付きのマス目を表示 */
@@ -53,6 +55,7 @@ export function InkCanvas(props: Props) {
     allowTouchInk = false,
     penColor = '#233047',
     baseWidth = 5,
+    penTool = 'pen',
     aspectRatio = 1,
     showGrid = false,
     guide,
@@ -76,8 +79,8 @@ export function InkCanvas(props: Props) {
   const diagRef = useRef<InkDiagnostics>(emptyDiagnostics())
   const diagScheduledRef = useRef(false)
 
-  const cbRef = useRef({ onStrokeStart, onStrokeEnd, onInkChange, onDiag, penColor, baseWidth, disabled, allowTouchInk })
-  cbRef.current = { onStrokeStart, onStrokeEnd, onInkChange, onDiag, penColor, baseWidth, disabled, allowTouchInk }
+  const cbRef = useRef({ onStrokeStart, onStrokeEnd, onInkChange, onDiag, penColor, baseWidth, penTool, disabled, allowTouchInk })
+  cbRef.current = { onStrokeStart, onStrokeEnd, onInkChange, onDiag, penColor, baseWidth, penTool, disabled, allowTouchInk }
 
   const getCtx = (): CanvasRenderingContext2D | null => {
     const canvas = canvasRef.current
@@ -91,13 +94,32 @@ export function InkCanvas(props: Props) {
     return base * (0.55 + 0.9 * p)
   }
 
-  const strokeStyleOf = (s: Pick<InkStroke, 'color' | 'width'>): { color: string; base: number } => ({
-    color: s.color ?? cbRef.current.penColor,
-    base: s.width ?? cbRef.current.baseWidth,
-  })
+  const strokeStyleOf = (
+    s: Pick<InkStroke, 'color' | 'width' | 'tool'>
+  ): { color: string; base: number; tool: 'pen' | 'brush' | 'eraser' } => {
+    const tool = s.tool ?? 'pen'
+    const base = s.width ?? cbRef.current.baseWidth
+    return {
+      color: s.color ?? cbRef.current.penColor,
+      // ふでブラシは太く、消しゴムはさらに太く
+      base: tool === 'brush' ? base * 2.6 : tool === 'eraser' ? base * 3.4 : base,
+      tool,
+    }
+  }
+
+  const applyTool = (ctx: CanvasRenderingContext2D, tool: 'pen' | 'brush' | 'eraser') => {
+    ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over'
+    ctx.globalAlpha = tool === 'brush' ? 0.45 : 1
+  }
+
+  const resetTool = (ctx: CanvasRenderingContext2D) => {
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 1
+  }
 
   const drawSegment = (ctx: CanvasRenderingContext2D, a: InkPoint, b: InkPoint, stroke: InkStroke) => {
     const st = strokeStyleOf(stroke)
+    applyTool(ctx, st.tool)
     ctx.strokeStyle = st.color
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
@@ -106,14 +128,17 @@ export function InkCanvas(props: Props) {
     ctx.moveTo(a.x, a.y)
     ctx.lineTo(b.x, b.y)
     ctx.stroke()
+    resetTool(ctx)
   }
 
   const drawDot = (ctx: CanvasRenderingContext2D, p: InkPoint, stroke: InkStroke) => {
     const st = strokeStyleOf(stroke)
+    applyTool(ctx, st.tool)
     ctx.fillStyle = st.color
     ctx.beginPath()
     ctx.arc(p.x, p.y, widthFor(p.p, stroke.pointerType, st.base) / 2, 0, Math.PI * 2)
     ctx.fill()
+    resetTool(ctx)
   }
 
   const redrawAll = () => {
@@ -273,6 +298,7 @@ export function InkCanvas(props: Props) {
       endedAt: 0,
       color: cbRef.current.penColor,
       width: cbRef.current.baseWidth,
+      tool: cbRef.current.penTool,
     }
     d.currentStrokePoints = 1
     const ctx = getCtx()

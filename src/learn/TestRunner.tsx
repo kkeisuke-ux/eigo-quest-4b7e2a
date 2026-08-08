@@ -469,6 +469,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
             <WordPad
               word={word?.en ?? ''}
               ghost
+              caseInsensitive
               resetKey={`reveal-${index}`}
               onJudged={(res) => {
                 if (res.correct) {
@@ -532,6 +533,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
             resetKey={`${targetId}-${index}`}
             retryToken={retrySeq}
             perLetterMarks={wrong?.marks ?? null}
+            caseInsensitive
             onJudged={handleJudged}
             disabled={mark === 'correct' || wrong != null}
             overlay={mark ? <JudgeMark kind={mark} /> : null}

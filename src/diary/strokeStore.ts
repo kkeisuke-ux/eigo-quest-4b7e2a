@@ -13,6 +13,7 @@ export function toStored(s: InkStroke, maxPoints = 64): StoredStroke {
     points: sampled.map((p) => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10] as [number, number]),
     color: s.color,
     width: s.width,
+    tool: s.tool,
   }
 }
 
@@ -26,5 +27,6 @@ export function fromStored(s: StoredStroke, id: number, scale = 1): InkStroke {
     endedAt: 0,
     color: s.color,
     width: s.width,
+    tool: s.tool,
   }
 }
