@@ -83,6 +83,8 @@ export function unlockSpeechOnGesture(): void {
   window.addEventListener('pointerdown', handler, { passive: true })
 }
 
+let ttsSeq = 0
+
 class TtsProvider implements PronunciationProvider {
   available(): boolean {
     return typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined'
@@ -90,6 +92,7 @@ class TtsProvider implements PronunciationProvider {
 
   async speak(text: string, kind: SpeechKind): Promise<void> {
     if (!this.available() || !text.trim()) return
+    const my = ++ttsSeq
     ensureVoices()
     // en-US音声のリストがまだ来ていないときは少し待つ。
     // voice未指定のまま話すと、日本語設定のiPadでは日本語音声が英語を読んでしまい
@@ -98,9 +101,17 @@ class TtsProvider implements PronunciationProvider {
       await new Promise((r) => setTimeout(r, 250))
       cachedVoice = pickVoice()
     }
-    return new Promise((resolve) => {
-      // 直前の発話は打ち切る（連続でカードをめくった時に音が重ならない）
+    // 直前の発話は打ち切る（連続でカードをめくった時に音が重ならない）。
+    // iOS Safariには「cancel()直後のspeak()が無視されて無音になる」既知バグがあるため、
+    // キューに何かある時だけcancelし、少し間を置いてから話す（アルファベットの
+    // 自動発音が聞こえない問題の修正。2026-08-08 第4回フィードバック）
+    if (speechSynthesis.speaking || speechSynthesis.pending) {
       speechSynthesis.cancel()
+      await new Promise((r) => setTimeout(r, 120))
+    }
+    // 待っている間に新しい発話要求が来ていたら、この発話は破棄する
+    if (my !== ttsSeq) return
+    return new Promise((resolve) => {
       // iOSはタブ復帰後などにpausedのまま止まることがあるため毎回起こす
       try {
         speechSynthesis.resume()

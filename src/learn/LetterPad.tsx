@@ -49,6 +49,12 @@ export function LetterPad({ letter, resetKey, onJudged, disabled = false, overla
     if (judgedRef.current || disabled) return
     const ink = inkRef.current
     if (!ink) return
+    // まだ書いている最中なら判定しない（少し待って再確認）
+    if (ink.isWriting()) {
+      cancelTimer()
+      timerRef.current = window.setTimeout(judgeNow, 400)
+      return
+    }
     const strokes = ink.getStrokes()
     if (strokes.length === 0) return
     cancelTimer()
@@ -61,9 +67,10 @@ export function LetterPad({ letter, resetKey, onJudged, disabled = false, overla
   const handleInkChange = (all: InkStroke[]) => {
     setStrokeCount(all.length)
     cancelTimer()
-    if (!judgedRef.current && !disabled && all.length >= refCount) {
-      timerRef.current = window.setTimeout(judgeNow, cfg.scoring.autoJudgeDelayMs)
-    }
+    if (judgedRef.current || disabled || all.length === 0) return
+    // お手本の画数に達したら短めに、足りないうち（続け書き途中など）はたっぷり待つ
+    const delay = all.length >= refCount ? cfg.scoring.autoJudgeDelayMs : cfg.scoring.autoJudgeDelayMs * 4
+    timerRef.current = window.setTimeout(judgeNow, delay)
   }
 
   return (
@@ -72,6 +79,7 @@ export function LetterPad({ letter, resetKey, onJudged, disabled = false, overla
         inkRef={inkRef}
         disabled={disabled || judged}
         allowTouchInk={getAppFlags().allowTouchInk}
+        onStrokeStart={cancelTimer}
         onInkChange={handleInkChange}
         guide={<RuleLines className="rule-svg" />}
         overlay={overlay}

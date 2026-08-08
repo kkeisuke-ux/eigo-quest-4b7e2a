@@ -3059,3 +3059,28 @@ body {
 .unknown-source-review {
   background: #3f9d63;
 }
+
+/* ---------- 単語の筆記エリアはできる限り大きく（2026-08-08 第4回） ---------- */
+.word-pad {
+  width: min(56vw, 940px);
+  max-width: 100%;
+}
+
+.word-box {
+  max-width: 215px;
+}
+
+.word-pad-row-many .word-box {
+  min-width: 56px;
+  max-width: 130px;
+}
+
+@media (orientation: portrait) {
+  .word-pad {
+    width: 94vw;
+  }
+
+  .word-box {
+    max-width: 180px;
+  }
+}

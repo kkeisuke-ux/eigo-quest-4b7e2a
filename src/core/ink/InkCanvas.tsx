@@ -16,6 +16,8 @@ export interface InkCanvasHandle {
   setStrokes(strokes: InkStroke[]): void
   /** キャンバスの一辺=幅（CSS px） */
   getSize(): number
+  /** いま書いている最中か（ペンが触れている間true。自動判定の抑止に使う） */
+  isWriting(): boolean
 }
 
 interface Props {
@@ -32,6 +34,8 @@ interface Props {
   guide?: React.ReactNode
   /** インクの上に重ねるオーバーレイ（採点表示等） */
   overlay?: React.ReactNode
+  /** 1画の書き始め（pointerdownでインク化が始まった瞬間）に呼ぶ */
+  onStrokeStart?: () => void
   onStrokeEnd?: (stroke: InkStroke, all: InkStroke[]) => void
   onInkChange?: (all: InkStroke[]) => void
   onDiag?: (diag: InkDiagnostics) => void
@@ -53,6 +57,7 @@ export function InkCanvas(props: Props) {
     showGrid = false,
     guide,
     overlay,
+    onStrokeStart,
     onStrokeEnd,
     onInkChange,
     onDiag,
@@ -71,8 +76,8 @@ export function InkCanvas(props: Props) {
   const diagRef = useRef<InkDiagnostics>(emptyDiagnostics())
   const diagScheduledRef = useRef(false)
 
-  const cbRef = useRef({ onStrokeEnd, onInkChange, onDiag, penColor, baseWidth, disabled, allowTouchInk })
-  cbRef.current = { onStrokeEnd, onInkChange, onDiag, penColor, baseWidth, disabled, allowTouchInk }
+  const cbRef = useRef({ onStrokeStart, onStrokeEnd, onInkChange, onDiag, penColor, baseWidth, disabled, allowTouchInk })
+  cbRef.current = { onStrokeStart, onStrokeEnd, onInkChange, onDiag, penColor, baseWidth, disabled, allowTouchInk }
 
   const getCtx = (): CanvasRenderingContext2D | null => {
     const canvas = canvasRef.current
@@ -200,6 +205,9 @@ export function InkCanvas(props: Props) {
       getSize() {
         return sizeRef.current
       },
+      isWriting() {
+        return activeIdRef.current !== null
+      },
     }
     return () => {
       if (inkRef) inkRef.current = null
@@ -269,6 +277,7 @@ export function InkCanvas(props: Props) {
     d.currentStrokePoints = 1
     const ctx = getCtx()
     if (ctx) drawDot(ctx, pt, currentRef.current)
+    cbRef.current.onStrokeStart?.()
     e.preventDefault()
     flushDiag()
   }

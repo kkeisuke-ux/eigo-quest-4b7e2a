@@ -9,6 +9,7 @@ import type { Pt } from '../core/geometry'
 import { judgeWord, type WordJudgeResult } from '../recognition/classify'
 import { getEffectiveJudgeConfig } from '../config/judgeRuntime'
 import { getAppFlags } from '../config/appFlags'
+import { getRefLetter, hasRefLetter } from '../core/refdata'
 import { Button } from '../ui/components'
 import { LetterSvg, RuleLines } from '../ui/LetterSvg'
 
@@ -94,8 +95,16 @@ export function WordPad({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryToken])
 
-  const judgeNow = () => {
+  const judgeNow = (fromButton = false) => {
     if (judgedRef.current || disabled) return
+    // どこかのボックスでまだ書いている最中なら判定しない（少し待って再確認）
+    if (boxRefs.some((r) => r.current?.isWriting())) {
+      if (!fromButton) {
+        cancelTimer()
+        timerRef.current = window.setTimeout(() => judgeNow(false), 400)
+      }
+      return
+    }
     const perBox: Pt[][][] = letters.map((_, i) => strokesToPts(boxRefs[i].current?.getStrokes() ?? []))
     if (perBox.every((b) => b.length === 0)) return
     cancelTimer()
@@ -116,12 +125,16 @@ export function WordPad({
     })
     cancelTimer()
     if (judgedRef.current || disabled) return
-    const everyFilled = letters.every(
-      (_, i) => (i === boxIdx ? all.length : (boxRefs[i].current?.getStrokes().length ?? 0)) > 0
+    const strokesOf = (i: number) => (i === boxIdx ? all.length : (boxRefs[i].current?.getStrokes().length ?? 0))
+    const everyFilled = letters.every((_, i) => strokesOf(i) > 0)
+    if (!everyFilled) return
+    // 書き終わりを待ってから判定する（2026-08-08フィードバック: gの2画目を書く前に×が出ない
+    // ように）。お手本の画数に足りないボックスが残っている間は、たっぷり待つ
+    const everyComplete = letters.every(
+      (ch, i) => !hasRefLetter(ch) || strokesOf(i) >= getRefLetter(ch).strokeCount
     )
-    if (everyFilled) {
-      timerRef.current = window.setTimeout(judgeNow, cfg.scoring.autoJudgeDelayMs)
-    }
+    const delay = everyComplete ? cfg.scoring.autoJudgeDelayMs : cfg.scoring.autoJudgeDelayMs * 4
+    timerRef.current = window.setTimeout(() => judgeNow(false), delay)
   }
 
   const undoLast = () => {
@@ -164,6 +177,7 @@ export function WordPad({
               inkRef={boxRefs[i]}
               disabled={disabled || judged}
               allowTouchInk={getAppFlags().allowTouchInk}
+              onStrokeStart={cancelTimer}
               onInkChange={(all) => handleInkChange(i, all)}
               onStrokeEnd={() => orderRef.current.push(i)}
               baseWidth={4.2}
@@ -193,7 +207,7 @@ export function WordPad({
         <Button variant="ghost" size="sm" onClick={clearAll} disabled={judged || totalStrokes === 0}>
           ぜんぶけす
         </Button>
-        <Button variant="primary" size="sm" onClick={judgeNow} disabled={judged || disabled || totalStrokes === 0}>
+        <Button variant="primary" size="sm" onClick={() => judgeNow(true)} disabled={judged || disabled || totalStrokes === 0}>
           できた！
         </Button>
         {extraFooter}

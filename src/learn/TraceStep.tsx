@@ -63,6 +63,12 @@ export function TraceStep({
     if (doneRef.current) return
     const ink = inkRef.current
     if (!ink) return
+    // まだ書いている最中なら判定しない（少し待って再確認）
+    if (ink.isWriting()) {
+      cancelTimer()
+      timerRef.current = window.setTimeout(judgeNow, 400)
+      return
+    }
     const strokes = ink.getStrokes()
     if (strokes.length === 0) return
     cancelTimer()
@@ -91,10 +97,12 @@ export function TraceStep({
     if (n === 0) return
     if (n < ref.strokeCount) {
       playStrokePop()
+      // 続け書き（1画で全部書く子）の救済: たっぷり待ってから判定する
+      timerRef.current = window.setTimeout(judgeNow, 3500)
       return
     }
     // 画数分そろったら少し待って字形判定（書き順・向きは問わない）
-    timerRef.current = window.setTimeout(judgeNow, 500)
+    timerRef.current = window.setTimeout(judgeNow, 600)
   }
 
   const currentStroke = Math.min(strokeCount, ref.strokeCount - 1)
@@ -128,6 +136,7 @@ export function TraceStep({
       <InkCanvas
         inkRef={inkRef}
         allowTouchInk={getAppFlags().allowTouchInk}
+        onStrokeStart={cancelTimer}
         onInkChange={handleInkChange}
         className="pad-box"
         guide={guide}
