@@ -22,22 +22,36 @@ export const DEFAULT_FLAGS: AppFlags = {
   allowTouchInk: false,
   seOn: true,
   bgmOn: true,
-  bgmVolume: 0.12,
+  bgmVolume: 0.06,
   seVolume: 0.5,
-  voiceVolume: 0.9,
+  voiceVolume: 1.0,
 }
 
 let flags: AppFlags = { ...DEFAULT_FLAGS }
 
 export async function loadAppFlags(): Promise<void> {
   try {
+    // 2026-08-08フィードバック: 「発音はもっと大きく・BGMはもっと小さく」。
+    // 旧デフォルト値（voice 0.9 / bgm 0.12）のまま保存されているプロフィールは
+    // 新デフォルトへ引き上げ/引き下げる（手動で変えた値はそのまま尊重）
+    const near = (a: number, b: number) => Math.abs(a - b) < 0.005
+    let savedVoice = await getSetting<number>('voiceVolume')
+    if (savedVoice != null && near(savedVoice, 0.9)) {
+      savedVoice = DEFAULT_FLAGS.voiceVolume
+      await putSetting('voiceVolume', savedVoice)
+    }
+    let savedBgm = await getSetting<number>('bgmVolume')
+    if (savedBgm != null && near(savedBgm, 0.12)) {
+      savedBgm = DEFAULT_FLAGS.bgmVolume
+      await putSetting('bgmVolume', savedBgm)
+    }
     flags = {
       allowTouchInk: (await getSetting<boolean>('allowTouchInk')) ?? DEFAULT_FLAGS.allowTouchInk,
       seOn: (await getSetting<boolean>('seOn')) ?? DEFAULT_FLAGS.seOn,
       bgmOn: (await getSetting<boolean>('bgmOn')) ?? DEFAULT_FLAGS.bgmOn,
-      bgmVolume: (await getSetting<number>('bgmVolume')) ?? DEFAULT_FLAGS.bgmVolume,
+      bgmVolume: savedBgm ?? DEFAULT_FLAGS.bgmVolume,
       seVolume: (await getSetting<number>('seVolume')) ?? DEFAULT_FLAGS.seVolume,
-      voiceVolume: (await getSetting<number>('voiceVolume')) ?? DEFAULT_FLAGS.voiceVolume,
+      voiceVolume: savedVoice ?? DEFAULT_FLAGS.voiceVolume,
     }
   } catch {
     flags = { ...DEFAULT_FLAGS }

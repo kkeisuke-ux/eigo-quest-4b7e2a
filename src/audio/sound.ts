@@ -55,8 +55,8 @@ function ac(): AudioContext | null {
 }
 
 // ---------------- audio ducking（仕様 §35） ----------------
-/** 発音中にBGMを下げる倍率（例: BGM12% → 発音中 約3%） */
-const DUCK_RATIO = 0.25
+/** 発音中にBGMを下げる倍率（例: BGM6% → 発音中 約1%） */
+const DUCK_RATIO = 0.2
 let duckCount = 0
 
 function currentBgmGain(): number {

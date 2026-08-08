@@ -51,6 +51,8 @@ export function LearnFlow({ stageId }: { stageId: string }) {
   const [wordIdx, setWordIdx] = useState(0)
   const [step, setStep] = useState(0)
   const [tries, setTries] = useState(0)
+  const [retrySeq, setRetrySeq] = useState(0)
+  const [wrongMarks, setWrongMarks] = useState<(boolean | null)[] | null>(null)
   const [showModelHelp, setShowModelHelp] = useState(false)
   const [mark, setMark] = useState<'correct' | 'wrong' | null>(null)
   const [wrongMsg, setWrongMsg] = useState<string | null>(null)
@@ -194,6 +196,7 @@ export function LearnFlow({ stageId }: { stageId: string }) {
     setTries(0)
     setShowModelHelp(false)
     setWrongMsg(null)
+    setWrongMarks(null)
   }
 
   const handleJudged = (res: WordJudgeResult, perBox: Pt[][][], allStrokes: InkStroke[], boxSize: number) => {
@@ -220,8 +223,11 @@ export function LearnFlow({ stageId }: { stageId: string }) {
     } else {
       playWrong()
       setMark('wrong')
+      // どの文字が×だったかをボックスに表示し、×の文字だけ書き直せるようにする
+      setWrongMarks(res.letters.map((l) => l.correct))
+      const wrongCount = res.letters.filter((l) => !l.correct).length
       const emptyMsg = res.hasEmptyBox ? 'まだ かいていない マスがあるよ。' : ''
-      setWrongMsg(`${emptyMsg}もういちど かいてみよう`)
+      setWrongMsg(`${emptyMsg}×の ${wrongCount}もじだけ かきなおそう`)
       setTries((t) => t + 1)
       window.setTimeout(() => setMark(null), 900)
     }
@@ -229,7 +235,8 @@ export function LearnFlow({ stageId }: { stageId: string }) {
 
   const retry = () => {
     setWrongMsg(null)
-    setTries((t) => t) // resetKeyはtriesに依存しているのでそのまま
+    setWrongMarks(null)
+    setRetrySeq((s) => s + 1) // ×だった文字のボックスだけ消えて再開する
   }
 
   if (phase === 'init') return <LoadingView />
@@ -311,13 +318,14 @@ export function LearnFlow({ stageId }: { stageId: string }) {
             <div className="feedback fb-wrong">
               <p className="feedback-soft">{wrongMsg}</p>
               <div className="row gap">
-                <Button onClick={retry}>もういちど かく</Button>
+                <Button onClick={retry}>かきなおす</Button>
                 {tries >= 2 && !showModelHelp && (
                   <Button
                     variant="secondary"
                     onClick={() => {
                       setShowModelHelp(true)
                       setWrongMsg(null)
+                      setWrongMarks(null)
                       void speakWord(word.en)
                     }}
                   >
@@ -333,9 +341,11 @@ export function LearnFlow({ stageId }: { stageId: string }) {
           <WordPad
             word={word.en}
             ghost={isTrace}
-            resetKey={`${stageId}-${wordIdx}-${step}-${tries}-${showModelHelp ? 'help' : ''}`}
+            resetKey={`${stageId}-${wordIdx}-${step}-${showModelHelp ? 'help' : ''}`}
+            retryToken={retrySeq}
+            perLetterMarks={wrongMarks}
             onJudged={handleJudged}
-            disabled={mark === 'correct'}
+            disabled={mark === 'correct' || wrongMsg != null}
             overlay={mark ? <JudgeMark kind={mark} /> : null}
           />
         </div>

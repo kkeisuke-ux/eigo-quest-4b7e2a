@@ -55,6 +55,31 @@ function ensureVoices(): void {
   )
 }
 
+// iOS/iPad Safariは、ユーザー操作（タップ）の中で一度 speak() しないと
+// 以後の自動発音（setTimeout経由など）が無音になる。最初のタップで
+// 無音のダミー発話を行い、SpeechSynthesisをアンロックする（仕様 §7の自動発音を成立させる）。
+let speechUnlocked = false
+
+export function unlockSpeechOnGesture(): void {
+  if (typeof window === 'undefined' || typeof speechSynthesis === 'undefined') return
+  const handler = () => {
+    if (speechUnlocked) return
+    speechUnlocked = true
+    try {
+      ensureVoices()
+      const u = new SpeechSynthesisUtterance(' ')
+      u.volume = 0
+      u.rate = 10
+      u.lang = 'en-US'
+      speechSynthesis.speak(u)
+    } catch {
+      // アンロック失敗しても発音ボタンからは鳴る
+    }
+    window.removeEventListener('pointerdown', handler)
+  }
+  window.addEventListener('pointerdown', handler, { passive: true })
+}
+
 class TtsProvider implements PronunciationProvider {
   available(): boolean {
     return typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined'
@@ -66,6 +91,12 @@ class TtsProvider implements PronunciationProvider {
     return new Promise((resolve) => {
       // 直前の発話は打ち切る（連続でカードをめくった時に音が重ならない）
       speechSynthesis.cancel()
+      // iOSはタブ復帰後などにpausedのまま止まることがあるため毎回起こす
+      try {
+        speechSynthesis.resume()
+      } catch {
+        // resume非対応でも発話は試みる
+      }
       const u = new SpeechSynthesisUtterance(text)
       u.lang = 'en-US'
       if (cachedVoice) u.voice = cachedVoice

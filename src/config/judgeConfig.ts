@@ -80,11 +80,13 @@ export const DEFAULT_JUDGE_CONFIG: JudgeConfig = {
     length: 0.25,
     centroid: 0.5,
   },
+  // 2026-08-08 実機フィードバックで大幅に緩和（「文字識別が辛すぎる」）。旧: 0.46/0.6/0.22
+  // distinctRatioは緩和とセットで締める（U→O・h→K等の「別の文字を書いたのに正解」を防ぐ）
   boxCostWeight: 0.45,
-  letterPassCost: 0.46,
+  letterPassCost: 0.56,
   distinctMargin: 0.12,
-  distinctRatio: 0.6,
-  strokeCountPenalty: 0.22,
+  distinctRatio: 0.44,
+  strokeCountPenalty: 0.18,
   reverseMargin: 0.04,
   trace: {
     passCost: 0.8,
@@ -103,10 +105,11 @@ export const DEFAULT_JUDGE_CONFIG: JudgeConfig = {
 // 初期設定は「やさしい」= きれいさより「読めること」を優先。
 // 合格コストしきい値に係数を掛ける。
 // ============================================================
+// 2026-08-08 実機フィードバックで全段階を甘い方向へ（旧: 1.4 / 1.1 / 0.82）
 export const STRICTNESS_FACTORS: Record<number, number> = {
-  1: 1.4,
-  2: 1.1,
-  3: 0.82,
+  1: 1.55,
+  2: 1.2,
+  3: 0.9,
 }
 
 export const STRICTNESS_LABELS = ['やさしい', 'ふつう', 'きびしい']

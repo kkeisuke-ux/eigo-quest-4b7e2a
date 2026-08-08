@@ -25,6 +25,11 @@ export interface WordPadProps {
   extraFooter?: ReactNode
   /** 判定後に各ボックスへ出す○×（null=マークなし） */
   perLetterMarks?: (boolean | null)[] | null
+  /**
+   * 変わると「直前の判定で×だった文字のボックスだけ」を消して書き直しモードにする
+   * （○だった文字はそのまま残る。仕様フィードバック 2026-08-08）
+   */
+  retryToken?: number
 }
 
 interface BoxRef {
@@ -40,12 +45,14 @@ export function WordPad({
   overlay,
   extraFooter,
   perLetterMarks = null,
+  retryToken = 0,
 }: WordPadProps) {
   const letters = useMemo(() => [...word], [word])
   const boxRefs = useMemo<BoxRef[]>(() => letters.map(() => ({ current: null })), [letters])
   const orderRef = useRef<number[]>([])
   const timerRef = useRef<number | null>(null)
   const judgedRef = useRef(false)
+  const lastJudgeRef = useRef<WordJudgeResult | null>(null)
   const [judged, setJudged] = useState(false)
   const [counts, setCounts] = useState<number[]>(() => letters.map(() => 0))
   const cfg = getEffectiveJudgeConfig()
@@ -61,12 +68,31 @@ export function WordPad({
     boxRefs.forEach((r) => r.current?.clear())
     orderRef.current = []
     judgedRef.current = false
+    lastJudgeRef.current = null
     setJudged(false)
     setCounts(letters.map(() => 0))
     cancelTimer()
     return cancelTimer
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey, word])
+
+  // 「まちがえた文字だけ かきなおす」: ×だったボックスだけ消して再開する
+  useEffect(() => {
+    if (retryToken === 0) return
+    const last = lastJudgeRef.current
+    if (!last) return
+    const wrongIdx = new Set<number>()
+    letters.forEach((_, i) => {
+      if (!(last.letters[i]?.correct ?? false)) wrongIdx.add(i)
+    })
+    wrongIdx.forEach((i) => boxRefs[i]?.current?.clear())
+    orderRef.current = orderRef.current.filter((i) => !wrongIdx.has(i))
+    judgedRef.current = false
+    setJudged(false)
+    setCounts(letters.map((_, i) => (wrongIdx.has(i) ? 0 : (boxRefs[i]?.current?.getStrokes().length ?? 0))))
+    cancelTimer()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryToken])
 
   const judgeNow = () => {
     if (judgedRef.current || disabled) return
@@ -78,6 +104,7 @@ export function WordPad({
     const boxSize = boxRefs.find((r) => r.current != null)?.current?.getSize() ?? 300
     const allStrokes = letters.flatMap((_, i) => boxRefs[i].current?.getStrokes() ?? [])
     const res = judgeWord(perBox, boxSize, word, cfg)
+    lastJudgeRef.current = res
     onJudged(res, perBox, allStrokes, boxSize)
   }
 

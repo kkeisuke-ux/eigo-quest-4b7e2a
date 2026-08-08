@@ -60,8 +60,9 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
   const [index, setIndex] = useState(0)
   const [items, setItems] = useState<TestItemRecord[]>([])
   const [qType, setQType] = useState<QType>('ja')
-  const [wrong, setWrong] = useState<{ recognized: string; hasEmpty: boolean } | null>(null)
+  const [wrong, setWrong] = useState<{ recognized: string; hasEmpty: boolean; marks: (boolean | null)[] } | null>(null)
   const [tries, setTries] = useState(0)
+  const [retrySeq, setRetrySeq] = useState(0)
   const [mark, setMark] = useState<'correct' | 'wrong' | null>(null)
   const [resultCoins, setResultCoins] = useState<{ amount: number; breakdown: CoinBreakdownItem[] } | null>(null)
   const [showCelebration, setShowCelebration] = useState(false)
@@ -255,11 +256,9 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
       happyBuddy()
       await saveSample(profile.id, word?.en ?? wordId, { verdict: 'correct', recognized: res.recognized, score: 100 }, allStrokes, boxSize, kind === 'review' ? 'review' : 'test')
       await applyWordOutcome(profile.id, wordId, 'correct', { context: kind === 'review' ? 'review' : 'test' })
-      if (kind !== 'review') {
-        // 正式なテストで正解 → わからないリストから自動削除（仕様 §22）
-        const removed = await clearUnknownWord(profile.id, wordId)
-        if (removed) showToast(`「${word?.en}」が わからないリストから きえたよ！`)
-      }
+      // テストでも復習でも、正解したら「わからなかった ことば」から自動削除（2026-08-08フィードバック）
+      const removed = await clearUnknownWord(profile.id, wordId)
+      if (removed) showToast(`「${word?.en}」が わからなかったことばから きえたよ！`)
       const reward = await awardStudy(profile.id, perCorrectCoins, GAME_CONFIG.exp.testCorrect, 'テストせいかい')
       earnedRef.current += perCorrectCoins
       if (reward.expEvents) evoQueueRef.current.push(reward.expEvents)
@@ -281,10 +280,10 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
     if (res.correct) {
       void finalizeCorrect(res, allStrokes, boxSize)
     } else {
-      // 不正解: 記録はまだ確定せず、その場でもう一度書ける（仕様 §20）
+      // 不正解: 記録はまだ確定せず、×の文字だけその場で書き直せる（仕様 §20 + 2026-08-08）
       playWrong()
       void saveSample(profile.id, word?.en ?? wordId, { verdict: 'wrong', recognized: res.recognized, score: 0 }, allStrokes, boxSize, kind === 'review' ? 'review' : 'test')
-      setWrong({ recognized: res.recognized, hasEmpty: res.hasEmptyBox })
+      setWrong({ recognized: res.recognized, hasEmpty: res.hasEmptyBox, marks: res.letters.map((l) => l.correct) })
       setTries((t) => t + 1)
       setMark('wrong')
       window.setTimeout(() => setMark(null), 900)
@@ -293,6 +292,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
 
   const retryWrite = () => {
     setWrong(null)
+    setRetrySeq((s) => s + 1) // ×だった文字のボックスだけ消えて再開する
   }
 
   const markWrongOrUnknown = async (result: 'wrong' | 'unknown') => {
@@ -408,7 +408,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
           </div>
           {missed.length > 0 && (
             <div className="card">
-              <h3>ふくしゅうリストに いれた ことば</h3>
+              <h3>わからなかった ことばに いれたよ（ふくしゅうで せいかいすると きえる）</h3>
               <div className="result-chips">
                 {missed.map((i, n) => {
                   const w = getWord(i.wordId)
@@ -507,10 +507,12 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
           {wrong && (
             <div className="feedback fb-wrong">
               <p className="feedback-soft">
-                {wrong.hasEmpty ? 'まだ かいていない マスがあるよ。' : ''}おしい！ もういちど かいてみよう
+                {wrong.hasEmpty
+                  ? 'まだ かいていない マスがあるよ。'
+                  : `おしい！ ×の ${wrong.marks.filter((m) => m === false).length}もじだけ かきなおそう`}
               </p>
               <div className="row gap">
-                <Button onClick={retryWrite}>もういちど かく</Button>
+                <Button onClick={retryWrite}>かきなおす</Button>
                 {tries >= 2 && (
                   <Button variant="secondary" onClick={() => void markWrongOrUnknown('wrong')}>
                     こたえを 見る
@@ -524,7 +526,9 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
         <div className="split-right">
           <WordPad
             word={word?.en ?? ''}
-            resetKey={`${targetId}-${index}-${tries}`}
+            resetKey={`${targetId}-${index}`}
+            retryToken={retrySeq}
+            perLetterMarks={wrong?.marks ?? null}
             onJudged={handleJudged}
             disabled={mark === 'correct' || wrong != null}
             overlay={mark ? <JudgeMark kind={mark} /> : null}

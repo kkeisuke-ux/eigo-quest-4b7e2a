@@ -19,7 +19,7 @@ export function UnknownList() {
         <Card>
           <p>
             テストで「こたえを 見る」を おしたり まちがえたりした ことばが ここに あつまるよ。
-            <b>つぎの テストで せいかいすると じどうで きえる</b>んだ。
+            <b>ふくしゅうか テストで せいかいすると じどうで きえて、コインも もらえる</b>んだ。
           </p>
           <Button onClick={() => navigate({ name: 'review', mode: 'unknown' })} disabled={list.length === 0}>
             ぜんぶ ふくしゅうする（{list.length}語）
