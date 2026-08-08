@@ -22,7 +22,9 @@ export const DEFAULT_FLAGS: AppFlags = {
   allowTouchInk: false,
   seOn: true,
   bgmOn: true,
-  bgmVolume: 0.06,
+  // 2026-08-08 第9回: 「発音をもっと大きく・BGMは小さくてよい」→ BGMをさらに下げて
+  // 発音（TTSは既に最大音量）を相対的に際立たせる
+  bgmVolume: 0.03,
   seVolume: 0.5,
   voiceVolume: 1.0,
 }
@@ -41,7 +43,7 @@ export async function loadAppFlags(): Promise<void> {
       await putSetting('voiceVolume', savedVoice)
     }
     let savedBgm = await getSetting<number>('bgmVolume')
-    if (savedBgm != null && near(savedBgm, 0.12)) {
+    if (savedBgm != null && (near(savedBgm, 0.12) || near(savedBgm, 0.06))) {
       savedBgm = DEFAULT_FLAGS.bgmVolume
       await putSetting('bgmVolume', savedBgm)
     }

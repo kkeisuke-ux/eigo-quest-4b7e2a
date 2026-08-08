@@ -140,6 +140,10 @@ export function Settings() {
             </Button>
           </div>
           <p className="tile-sub">
+            えいごの声はアプリ内では最大にしてあります。もっと大きくしたいときは<b>iPad本体の音量ボタン</b>で上げてください
+            （本体のよこの消音スイッチがオンだと声が鳴りません）。
+          </p>
+          <p className="tile-sub">
             {speechAvailable()
               ? `えいごの声: ${currentVoiceName() ?? 'この端末の英語音声（じゅんびちゅう）'}`
               : 'この端末では えいごの音声が つかえません（iPadのSafariでは つかえます）'}
