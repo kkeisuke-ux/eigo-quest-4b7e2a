@@ -97,9 +97,8 @@ export function printDiary(entry: DiaryEntryRecord, opts: DiaryPdfOptions): bool
   <div class="sheet">
     <h1><span>えいご絵日記　${esc(dateLabel)}</span><span class="name">${esc(opts.profileName)}</span></h1>
     <img class="drawing" src="${drawingUrl}" alt="えにっきの絵">
-    ${textUrl ? `<div class="label">じぶんで かいた 字</div><img class="textimg" src="${textUrl}" alt="てがきの英文">` : ''}
-    <div class="label">あなたの文</div>
-    <div class="sentence">${esc(entry.originalText || '（英文なし）')}</div>
+    ${textUrl ? `<div class="label">じぶんで かいた えいぶん</div><img class="textimg" src="${textUrl}" alt="てがきの英文">` : ''}
+    ${entry.originalText ? `<div class="label">あなたの文</div><div class="sentence">${esc(entry.originalText)}</div>` : ''}
     ${
       opts.includeCorrection && entry.correctedText
         ? `<div class="label">こう書くと もっと自然だよ</div>

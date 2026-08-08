@@ -64,6 +64,64 @@ export const SENTENCES: SentenceItem[] = [
   { id: 's-tomorrow-fun', en: 'Tomorrow will be fun.', ja: 'あしたがたのしみです。', usesWords: ['tomorrow'], keywords: ['あした', 'たのしみ', 'わくわく', 'よてい'] },
   { id: 's-want-dog', en: 'I want a dog.', ja: 'いぬがほしいです。', usesWords: ['i', 'dog'], keywords: ['ほしい', '欲しい', 'いぬ', 'ペット'] },
   { id: 's-want-play', en: 'I want to play with my friends.', ja: 'ともだちとあそびたいです。', usesWords: ['i', 'play', 'friend'], keywords: ['あそびたい', 'ともだち', 'したい'] },
+  // 学校・行事
+  { id: 's-pe-class', en: 'I had P.E. class today.', ja: 'きょうはたいいくがありました。', usesWords: ['today'], keywords: ['たいいく', '体育', 'じゅぎょう', 'がっこう'] },
+  { id: 's-lunch-good', en: 'School lunch was good.', ja: 'きゅうしょくがおいしかったです。', usesWords: ['school'], keywords: ['きゅうしょく', '給食', 'おいしい', 'ひるごはん'] },
+  { id: 's-test', en: 'I had a test today.', ja: 'きょうはテストがありました。', usesWords: ['today'], keywords: ['テスト', 'しけん', 'がっこう', 'べんきょう'] },
+  { id: 's-homework', en: 'I did my homework.', ja: 'しゅくだいをしました。', usesWords: ['i'], keywords: ['しゅくだい', '宿題', 'べんきょう', 'した'] },
+  { id: 's-sports-day', en: 'We had a sports day.', ja: 'うんどうかいがありました。', usesWords: [], keywords: ['うんどうかい', '運動会', 'かけっこ', 'ぎょうじ'] },
+  { id: 's-ran-fast', en: 'I ran very fast.', ja: 'とてもはやくはしりました。', usesWords: ['i', 'run'], keywords: ['はしった', '走った', 'かけっこ', 'はやい'] },
+  { id: 's-won', en: 'We won the game.', ja: 'しあいにかちました。', usesWords: [], keywords: ['かった', '勝った', 'しあい', 'ゲーム', 'やった'] },
+  { id: 's-lost', en: 'We lost the game, but it was fun.', ja: 'しあいにまけたけど、たのしかったです。', usesWords: [], keywords: ['まけた', '負けた', 'しあい', 'くやしい'] },
+  // ならいごと・練習
+  { id: 's-piano', en: 'I practiced the piano.', ja: 'ピアノのれんしゅうをしました。', usesWords: ['i'], keywords: ['ピアノ', 'れんしゅう', 'ならいごと', 'おんがく'] },
+  { id: 's-juku', en: 'I went to cram school.', ja: 'じゅくにいきました。', usesWords: ['i', 'go'], keywords: ['じゅく', '塾', 'べんきょう', 'いった'] },
+  { id: 's-practiced-soccer', en: 'I practiced soccer hard.', ja: 'サッカーのれんしゅうをがんばりました。', usesWords: ['i', 'soccer'], keywords: ['れんしゅう', 'がんばった', 'サッカー', 'クラブ'] },
+  // かぞく・おてつだい
+  { id: 's-helped-mother', en: 'I helped my mother.', ja: 'おかあさんのおてつだいをしました。', usesWords: ['i', 'mother'], keywords: ['おてつだい', '手伝い', 'おかあさん', 'えらい'] },
+  { id: 's-cooked', en: 'I cooked dinner with my father.', ja: 'おとうさんとばんごはんをつくりました。', usesWords: ['i', 'father'], keywords: ['りょうり', 'つくった', 'ばんごはん', 'おとうさん'] },
+  { id: 's-cleaned', en: 'I cleaned my room.', ja: 'へやのそうじをしました。', usesWords: ['i'], keywords: ['そうじ', '掃除', 'へや', 'かたづけ'] },
+  { id: 's-played-brother', en: 'I played with my brother.', ja: 'おとうととあそびました。', usesWords: ['i', 'play'], keywords: ['おとうと', 'おにいちゃん', 'きょうだい', 'あそんだ'] },
+  { id: 's-played-sister', en: 'I played with my sister.', ja: 'いもうととあそびました。', usesWords: ['i', 'play'], keywords: ['いもうと', 'おねえちゃん', 'きょうだい', 'あそんだ'] },
+  { id: 's-grandpa-came', en: 'My grandpa came to my house.', ja: 'おじいちゃんがいえにきました。', usesWords: ['house', 'come'], keywords: ['おじいちゃん', 'おばあちゃん', 'きた', 'あそびにきた'] },
+  // どうぶつ・ペット
+  { id: 's-walked-dog', en: 'I walked my dog.', ja: 'いぬのさんぽにいきました。', usesWords: ['i', 'walk', 'dog'], keywords: ['さんぽ', '散歩', 'いぬ', 'ペット'] },
+  { id: 's-cat-cute', en: 'My cat is very cute.', ja: 'うちのねこはとてもかわいいです。', usesWords: ['cat'], keywords: ['ねこ', 'かわいい', 'ペット'] },
+  { id: 's-saw-birds', en: 'I saw many birds.', ja: 'とりをたくさんみました。', usesWords: ['i', 'see', 'bird'], keywords: ['とり', 'みた', 'しぜん'] },
+  // たべもの
+  { id: 's-ate-curry', en: 'I ate curry and rice.', ja: 'カレーライスをたべました。', usesWords: ['i', 'eat', 'rice'], keywords: ['カレー', 'たべた', 'ばんごはん', 'すき'] },
+  { id: 's-ate-ramen', en: 'I ate ramen for lunch.', ja: 'ひるごはんにラーメンをたべました。', usesWords: ['i', 'eat'], keywords: ['ラーメン', 'ひるごはん', 'たべた', 'めん'] },
+  { id: 's-ate-fruit', en: 'I ate a sweet peach.', ja: 'あまいももをたべました。', usesWords: ['i', 'eat', 'peach'], keywords: ['もも', 'くだもの', 'あまい', 'たべた'] },
+  { id: 's-baked-cookies', en: 'I baked cookies.', ja: 'クッキーをやきました。', usesWords: ['i'], keywords: ['クッキー', 'おかし', 'つくった', 'やいた'] },
+  // かいもの・もらいもの
+  { id: 's-bought-book', en: 'I bought a new book.', ja: 'あたらしいほんをかいました。', usesWords: ['i', 'book'], keywords: ['かった', '買った', 'ほん', 'かいもの'] },
+  { id: 's-bought-shoes', en: 'I bought new shoes.', ja: 'あたらしいくつをかいました。', usesWords: ['i'], keywords: ['くつ', 'かった', 'かいもの', 'あたらしい'] },
+  { id: 's-got-present', en: 'I got a present.', ja: 'プレゼントをもらいました。', usesWords: ['i'], keywords: ['プレゼント', 'もらった', 'うれしい', 'たんじょうび'] },
+  // たんじょうび・イベント
+  { id: 's-birthday', en: 'Today is my birthday.', ja: 'きょうはわたしのたんじょうびです。', usesWords: ['today'], keywords: ['たんじょうび', '誕生日', 'おいわい', 'ケーキ'] },
+  { id: 's-birthday-party', en: 'We had a birthday party.', ja: 'たんじょうびパーティーをしました。', usesWords: [], keywords: ['たんじょうび', 'パーティー', 'おいわい', 'ケーキ'] },
+  { id: 's-fireworks', en: 'I watched fireworks.', ja: 'はなびをみました。', usesWords: ['i', 'see'], keywords: ['はなび', '花火', 'なつ', 'まつり', 'みた'] },
+  { id: 's-festival', en: 'I went to a festival.', ja: 'おまつりにいきました。', usesWords: ['i', 'go'], keywords: ['まつり', '祭り', 'やたい', 'いった'] },
+  { id: 's-camping', en: 'I went camping.', ja: 'キャンプにいきました。', usesWords: ['i', 'go'], keywords: ['キャンプ', 'いった', 'そと', 'しぜん', 'なつやすみ'] },
+  { id: 's-onsen', en: 'I went to a hot spring.', ja: 'おんせんにいきました。', usesWords: ['i', 'go'], keywords: ['おんせん', '温泉', 'おふろ', 'りょこう', 'いった'] },
+  { id: 's-trip', en: 'I went on a trip with my family.', ja: 'かぞくでりょこうにいきました。', usesWords: ['i', 'go', 'family'], keywords: ['りょこう', '旅行', 'かぞく', 'おでかけ', 'いった'] },
+  // てんき・きせつ
+  { id: 's-snowed', en: 'It snowed today.', ja: 'きょうはゆきがふりました。', usesWords: ['snowy', 'today'], keywords: ['ゆき', '雪', 'ふった', 'ふゆ', 'さむい'] },
+  { id: 's-cold', en: 'It was very cold.', ja: 'とてもさむかったです。', usesWords: [], keywords: ['さむい', 'さむかった', 'ふゆ', 'てんき'] },
+  { id: 's-rainbow', en: 'I saw a rainbow.', ja: 'にじをみました。', usesWords: ['i', 'see'], keywords: ['にじ', '虹', 'みた', 'きれい', 'そら'] },
+  { id: 's-pretty-moon', en: 'The moon was pretty.', ja: 'つきがきれいでした。', usesWords: ['moon'], keywords: ['つき', '月', 'きれい', 'よる', 'そら'] },
+  // きもちのバリエーション
+  { id: 's-excited', en: 'I was so excited.', ja: 'とてもわくわくしました。', usesWords: ['i'], keywords: ['わくわく', 'たのしみ', 'ドキドキ', 'きもち'] },
+  { id: 's-surprised', en: 'I was surprised.', ja: 'びっくりしました。', usesWords: ['i'], keywords: ['びっくり', 'おどろいた', 'きもち'] },
+  { id: 's-tired', en: 'I was tired today.', ja: 'きょうはつかれました。', usesWords: ['i', 'today'], keywords: ['つかれた', '疲れた', 'ねむい', 'たいへん'] },
+  { id: 's-happy-day', en: 'Today was a happy day.', ja: 'きょうはうれしいいちにちでした。', usesWords: ['today', 'happy'], keywords: ['うれしい', 'いいひ', 'さいこう', 'きょう'] },
+  { id: 's-best-day', en: 'Today was the best day.', ja: 'きょうはさいこうのいちにちでした。', usesWords: ['today'], keywords: ['さいこう', '最高', 'たのしかった', 'いちばん'] },
+  { id: 's-try-again', en: 'I will try again tomorrow.', ja: 'あしたまたがんばります。', usesWords: ['i', 'tomorrow'], keywords: ['がんばる', 'あした', 'また', 'ちょうせん'] },
+  // ゲーム・テレビ・ごろごろ
+  { id: 's-watched-anime', en: 'I watched anime.', ja: 'アニメをみました。', usesWords: ['i', 'see'], keywords: ['アニメ', 'みた', 'テレビ'] },
+  { id: 's-watched-youtube', en: 'I watched videos.', ja: 'どうがをみました。', usesWords: ['i', 'see'], keywords: ['どうが', '動画', 'ユーチューブ', 'みた'] },
+  { id: 's-stayed-home', en: 'I stayed home today.', ja: 'きょうはいえにいました。', usesWords: ['i', 'today', 'house'], keywords: ['いえ', 'おうち', 'ごろごろ', 'やすみ'] },
+  { id: 's-slept-early', en: 'I will go to bed early.', ja: 'きょうははやくねます。', usesWords: ['i', 'bed'], keywords: ['ねる', 'はやね', 'おやすみ', 'ねむい'] },
 ]
 
 /** 日本語の「言いたいこと」から例文をさがす（部分一致スコア順） */

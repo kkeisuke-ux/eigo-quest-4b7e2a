@@ -7,10 +7,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { GAME_CONFIG } from '../config/gameConfig'
 import { getAppFlags } from '../config/appFlags'
-import { InkCanvas, strokesToPts, type InkCanvasHandle } from '../core/ink/InkCanvas'
+import { InkCanvas, type InkCanvasHandle } from '../core/ink/InkCanvas'
 import { checkDiaryText } from '../diary/correction'
 import { printDiary } from '../diary/pdf'
-import { recognizeTextLines } from '../diary/textRecognition'
 import { fromStored, toStored } from '../diary/strokeStore'
 import { searchSentences, type SentenceItem } from '../data/sentences'
 import { awardStudy } from '../game/logic'
@@ -63,7 +62,6 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
   const [penWidth, setPenWidth] = useState(5)
   const [textEraser, setTextEraser] = useState(false)
   const [text, setText] = useState('')
-  const [recognizing, setRecognizing] = useState(false)
   const [checked, setChecked] = useState<{ corrected: string | null; notes: string[] } | null>(null)
   const [includeCorrection, setIncludeCorrection] = useState(true)
   const [helperQuery, setHelperQuery] = useState('')
@@ -115,26 +113,9 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
 
   if (!profile || !loaded) return <LoadingView />
 
-  const recognize = () => {
-    const ink = textRef.current
-    if (!ink) return
-    const strokes = ink.getStrokes().filter((s) => (s.tool ?? 'pen') !== 'eraser')
-    if (strokes.length === 0) {
-      showToast('まず 下のらんに えいごを かいてみよう')
-      return
-    }
-    setRecognizing(true)
-    window.setTimeout(() => {
-      const res = recognizeTextLines(strokesToPts(strokes), ink.getSize() * TEXT_ASPECT, TEXT_ROWS)
-      setText(res.text)
-      setRecognizing(false)
-      showToast('よみとったよ！ ちがうところは 下のらんで なおしてね')
-    }, 30)
-  }
-
   const runCheck = () => {
     if (!text.trim()) {
-      showToast('えいぶんが まだ ないよ。「よみとる」か、じぶんで うちこんでね')
+      showToast('チェックしたい えいぶんを 下のらんに うちこんでね')
       return
     }
     const res = checkDiaryText(text)
@@ -276,6 +257,59 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
           />
         </Card>
 
+        <Card className="diary-helper-card">
+          <div className="diary-toolbar">
+            <span className="diary-tool-label">💡 れいぶんを さがす — いいたいことを 日本語で いってみよう</span>
+          </div>
+          <div className="row gap">
+            <input
+              className="diary-text-input"
+              value={helperQuery}
+              onChange={(e) => setHelperQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && searchHelper()}
+              placeholder="れい: プールに いった／ケーキを たべた"
+            />
+            {speechAvailable && (
+              <button
+                className={`tool-btn ${listening ? 'tool-btn-active' : ''}`}
+                onClick={startListening}
+                disabled={listening}
+                title="おんせいで いう"
+              >
+                🎤{listening ? 'きいてるよ…' : ''}
+              </button>
+            )}
+            <Button size="sm" onClick={() => searchHelper()} disabled={!helperQuery.trim()}>
+              さがす
+            </Button>
+          </div>
+          {helperResults != null && (
+            <ul className="lookup-list">
+              {helperResults.length === 0 && (
+                <li className="tile-sub">ちかい れいぶんが みつからなかったよ。べつの いいかたで さがしてみてね</li>
+              )}
+              {helperResults.map((s) => (
+                <li key={s.id} className="lookup-item">
+                  <b className="lookup-en">{s.en}</b>
+                  <span className="lookup-ja">{s.ja}</span>
+                  <SpeakButton text={s.en} kind="sentence" size="sm" />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setText((t) => (t.trim() ? `${t.trim()} ${s.en}` : s.en))
+                      setChecked(null)
+                      showToast('チェックらんに いれたよ。見ながら かいてみよう！')
+                    }}
+                  >
+                    つかう
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
         <Card className="diary-text-card">
           <div className="diary-toolbar">
             <span className="diary-tool-label">きょうの えいご（1〜3文・すきに かこう）</span>
@@ -302,14 +336,9 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
             guide={<TextRuleLines rows={TEXT_ROWS} className="rule-svg" />}
             className="diary-canvas diary-text-canvas"
           />
-          <div className="row gap wrap">
-            <Button size="sm" onClick={recognize} disabled={recognizing}>
-              {recognizing ? 'よみとりちゅう…' : 'かいた字を よみとる'}
-            </Button>
-          </div>
           <div className="diary-text-review">
             <label className="diary-tool-label" htmlFor="diary-text">
-              えいぶん（よみとりの かくにん・なおし）:
+              えいぶんチェックを つかいたいときは、かいた文を ここに うちこんでね（なくてもOK）:
             </label>
             <div className="row gap">
               <input
@@ -356,59 +385,6 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
                 </ul>
               </div>
             </div>
-          )}
-        </Card>
-
-        <Card className="diary-helper-card">
-          <div className="diary-toolbar">
-            <span className="diary-tool-label">💡 れいぶんを さがす — いいたいことを 日本語で いれてね</span>
-          </div>
-          <div className="row gap">
-            <input
-              className="diary-text-input"
-              value={helperQuery}
-              onChange={(e) => setHelperQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && searchHelper()}
-              placeholder="れい: プールに いった／ケーキを たべた"
-            />
-            {speechAvailable && (
-              <button
-                className={`tool-btn ${listening ? 'tool-btn-active' : ''}`}
-                onClick={startListening}
-                disabled={listening}
-                title="おんせいで いう"
-              >
-                🎤{listening ? 'きいてるよ…' : ''}
-              </button>
-            )}
-            <Button size="sm" onClick={() => searchHelper()} disabled={!helperQuery.trim()}>
-              さがす
-            </Button>
-          </div>
-          {helperResults != null && (
-            <ul className="lookup-list">
-              {helperResults.length === 0 && (
-                <li className="tile-sub">ちかい れいぶんが みつからなかったよ。べつの いいかたで さがしてみてね</li>
-              )}
-              {helperResults.map((s) => (
-                <li key={s.id} className="lookup-item">
-                  <b className="lookup-en">{s.en}</b>
-                  <span className="lookup-ja">{s.ja}</span>
-                  <SpeakButton text={s.en} kind="sentence" size="sm" />
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      setText((t) => (t.trim() ? `${t.trim()} ${s.en}` : s.en))
-                      setChecked(null)
-                      showToast('えいぶんらんに いれたよ。まねして かいてみよう！')
-                    }}
-                  >
-                    つかう
-                  </Button>
-                </li>
-              ))}
-            </ul>
           )}
         </Card>
 
