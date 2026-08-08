@@ -24,15 +24,18 @@ function pickVoice(): SpeechSynthesisVoice | null {
   if (typeof speechSynthesis === 'undefined') return null
   const voices = speechSynthesis.getVoices()
   if (voices.length === 0) return null
-  // iOS/macOSの高品質音声を優先し、無ければ en-US → en-* の順で選ぶ
-  const preferredNames = ['Samantha', 'Ava', 'Allison', 'Nicky', 'Joelle']
+  const notCompact = (v: SpeechSynthesisVoice) => !/compact/i.test(v.name) && !/compact/i.test(v.voiceURI ?? '')
+  const enUs = voices.filter((v) => v.lang === 'en-US' || v.lang === 'en_US')
+  // iOS/macOSの高品質なネイティブ音声を最優先（Compact=低品質版は避ける）
+  const preferredNames = ['Samantha', 'Ava', 'Allison', 'Nicky', 'Joelle', 'Zoe', 'Nathan', 'Evan']
   for (const name of preferredNames) {
-    const v = voices.find((v) => v.name.includes(name) && v.lang.startsWith('en'))
+    const v =
+      enUs.find((v) => v.name.includes(name) && notCompact(v)) ??
+      voices.find((v) => v.name.includes(name) && v.lang.startsWith('en') && notCompact(v))
     if (v) return v
   }
-  const enUs = voices.filter((v) => v.lang === 'en-US' || v.lang === 'en_US')
   if (enUs.length > 0) {
-    return enUs.find((v) => v.localService) ?? enUs[0]
+    return enUs.find((v) => v.localService && notCompact(v)) ?? enUs.find(notCompact) ?? enUs[0]
   }
   const en = voices.filter((v) => v.lang.startsWith('en'))
   return en.length > 0 ? en[0] : null
@@ -85,9 +88,16 @@ class TtsProvider implements PronunciationProvider {
     return typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined'
   }
 
-  speak(text: string, kind: SpeechKind): Promise<void> {
-    if (!this.available() || !text.trim()) return Promise.resolve()
+  async speak(text: string, kind: SpeechKind): Promise<void> {
+    if (!this.available() || !text.trim()) return
     ensureVoices()
+    // en-US音声のリストがまだ来ていないときは少し待つ。
+    // voice未指定のまま話すと、日本語設定のiPadでは日本語音声が英語を読んでしまい
+    // 「日本人が英語を読んでいるような発音」になる（2026-08-08フィードバックの原因）
+    for (let i = 0; i < 3 && !cachedVoice; i++) {
+      await new Promise((r) => setTimeout(r, 250))
+      cachedVoice = pickVoice()
+    }
     return new Promise((resolve) => {
       // 直前の発話は打ち切る（連続でカードをめくった時に音が重ならない）
       speechSynthesis.cancel()

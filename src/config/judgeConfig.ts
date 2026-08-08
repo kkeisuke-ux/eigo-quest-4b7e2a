@@ -85,7 +85,7 @@ export const DEFAULT_JUDGE_CONFIG: JudgeConfig = {
   boxCostWeight: 0.45,
   letterPassCost: 0.56,
   distinctMargin: 0.12,
-  distinctRatio: 0.44,
+  distinctRatio: 0.4,
   strokeCountPenalty: 0.18,
   reverseMargin: 0.04,
   trace: {

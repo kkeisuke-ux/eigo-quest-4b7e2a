@@ -1,10 +1,13 @@
 // ============================================================
-// アルファベット文字認識（仕様 §14-§16）
+// アルファベット文字認識（仕様 §14-§16 + 2026-08-08 第3回フィードバック）
 // - 1ボックス=1文字。書いたストローク群を全候補テンプレートと照合して分類する
 // - コスト = boxCostWeight × box系(0..1、4線ガイド上の位置・大きさを保持)
 //          + (1-boxCostWeight) × shape系(インクbbox正規化、純粋な字形)
 // - 書き順・画の向きは問わない（Hungarianで順序不問マッチング、正逆min）
 // - 「人が普通に読める字形なら正解」。ただし明らかに別の文字は不正解（仕様 §16）
+// - 画数がちがっても、続け書き（例: g を丸〜しっぽまで一筆で書く）や
+//   分け書き（例: o を2画で書く）に対応するため、ストロークを連結した
+//   バリアントとも照合して最小コストを採用する
 // ============================================================
 import {
   applyCharTransform,
@@ -39,8 +42,10 @@ export interface LetterCandidate {
   letter: string
   /** 混合平均コスト（低いほど近い） */
   cost: number
-  /** 画数がお手本と一致していたか */
+  /** 画数がお手本と一致していたか（連結バリアント採用時はtrue扱い） */
   countMatch: boolean
+  /** 連結バリアント経由で最小コストになったか（別文字判定の証拠には使わない） */
+  viaVariant: boolean
 }
 
 export interface ClassifyResult {
@@ -51,15 +56,14 @@ export interface ClassifyResult {
   droppedTinyStrokes: number
 }
 
+/** norm（字形正規化）と box（罫線位置）の両座標系を持つ1画分の点列 */
+interface StrokeSet {
+  norm: Pt[]
+  box: Pt[]
+}
+
 interface PreparedInk {
-  /** box系 0..1 */
-  box: Pt[][]
-  boxF: StrokeFeatures[]
-  boxFRev: StrokeFeatures[]
-  /** shape系（インクbbox正規化） */
-  norm: Pt[][]
-  normF: StrokeFeatures[]
-  normFRev: StrokeFeatures[]
+  sets: StrokeSet[]
   dropped: number
 }
 
@@ -73,11 +77,7 @@ function prepareInk(strokesPx: Pt[][], boxSizePx: number, cfg: JudgeConfig): Pre
   const hasSubstantial = converted.some((s) => polylineLength(s) >= cfg.minStrokeLen * 3)
   for (const conv of converted) {
     const len = polylineLength(conv)
-    if (conv.length < 2 && !hasSubstantial) {
-      dropped++
-      continue
-    }
-    if (len < cfg.minStrokeLen && !hasSubstantial) {
+    if ((conv.length < 2 || len < cfg.minStrokeLen) && !hasSubstantial) {
       dropped++
       continue
     }
@@ -85,17 +85,11 @@ function prepareInk(strokesPx: Pt[][], boxSizePx: number, cfg: JudgeConfig): Pre
   }
   const inkBBox = bboxOf(kept)
   const t = makeCharTransform(inkBBox)
-  const box = kept.map((s) => resample(s, cfg.resampleN).map((p) => ({ x: p.x / REF_VIEWBOX, y: p.y / REF_VIEWBOX })))
-  const norm = kept.map((s) => resample(applyCharTransform(s, t), cfg.resampleN))
-  return {
-    box,
-    boxF: box.map(strokeFeatures),
-    boxFRev: box.map((s) => strokeFeatures([...s].reverse())),
-    norm,
-    normF: norm.map(strokeFeatures),
-    normFRev: norm.map((s) => strokeFeatures([...s].reverse())),
-    dropped,
-  }
+  const sets = kept.map((s) => ({
+    box: resample(s, cfg.resampleN).map((p) => ({ x: p.x / REF_VIEWBOX, y: p.y / REF_VIEWBOX })),
+    norm: resample(applyCharTransform(s, t), cfg.resampleN),
+  }))
+  return { sets, dropped }
 }
 
 /** 閉曲線（O・o など、始点と終点がほぼつながる画）か */
@@ -110,74 +104,146 @@ function rotated(pts: Pt[], off: number): Pt[] {
   return [...pts.slice(off), ...pts.slice(0, off)]
 }
 
-/** 1候補文字との混合平均コスト */
-function costAgainst(ink: PreparedInk, letter: string, cfg: JudgeConfig): LetterCandidate {
-  const ref = getRefLetter(letter, cfg.resampleN)
-  const userCount = ink.norm.length
-  const refCount = ref.strokeCount
+/** 複数画を1画に連結する（続け書き対応。間はresampleの弧長補間が橋渡しする） */
+function joinSets(sets: StrokeSet[], n: number): StrokeSet {
+  return {
+    norm: resample(sets.flatMap((s) => s.norm), n),
+    box: resample(sets.flatMap((s) => s.box), n),
+  }
+}
+
+interface MergeVariant {
+  sets: StrokeSet[]
+  /** 連結した境界の数（1連結ごとに小さなペナルティを掛ける） */
+  joins: number
+}
+
+/**
+ * 隣接ストロークを連結して target 本にした組合せを列挙する。
+ * 連結数は最大3（M や E の完全一筆書きまで対応。k=3は全連結1通りのみ）
+ */
+function mergeVariants(sets: StrokeSet[], target: number, n: number): MergeVariant[] {
+  const k = sets.length - target
+  if (k <= 0 || k > 3 || target < 1) return []
+  const boundaries = sets.length - 1
+  const combos: number[][] = []
+  if (k === 1) {
+    for (let i = 0; i < boundaries; i++) combos.push([i])
+  } else if (k === 2) {
+    for (let i = 0; i < boundaries; i++) {
+      for (let j = i + 1; j < boundaries; j++) combos.push([i, j])
+    }
+  } else {
+    // k=3: 全境界を連結（完全一筆書き）
+    combos.push(Array.from({ length: boundaries }, (_, i) => i))
+  }
+  return combos.map((cut) => {
+    const groups: StrokeSet[][] = []
+    let cur: StrokeSet[] = [sets[0]]
+    for (let i = 1; i < sets.length; i++) {
+      if (cut.includes(i - 1)) {
+        cur.push(sets[i])
+      } else {
+        groups.push(cur)
+        cur = [sets[i]]
+      }
+    }
+    groups.push(cur)
+    return { sets: groups.map((g) => (g.length === 1 ? g[0] : joinSets(g, n))), joins: k }
+  })
+}
+
+/** user×ref のペア混合コスト（正逆・閉曲線回転を考慮した最小） */
+function pairMixedCost(u: StrokeSet, r: StrokeSet, cfg: JudgeConfig): number {
   const wBox = cfg.boxCostWeight
   const wShape = 1 - wBox
+  const refNormF = strokeFeatures(r.norm)
+  const refBoxF = strokeFeatures(r.box)
+  const evalOne = (normPts: Pt[], boxPts: Pt[]): number =>
+    wShape * pairCost(pairMetrics(strokeFeatures(normPts), refNormF, cfg.dtwBand), cfg.weights) +
+    wBox * pairCost(pairMetrics(strokeFeatures(boxPts), refBoxF, cfg.dtwBand), cfg.weights)
 
-  // ペアごとの混合コスト（正方向・逆方向のmin。閉曲線は開始位置もずらして比較）
-  const cost: number[][] = []
-  for (let u = 0; u < userCount; u++) {
-    const row: number[] = []
-    for (let r = 0; r < refCount; r++) {
-      const rs = ref.strokes[r]
-      const refBoxF = strokeFeatures(rs.box)
-      const refNormF: StrokeFeatures = {
-        pts: rs.norm,
-        len: rs.normLen,
-        start: rs.normStart,
-        end: rs.normEnd,
-        centroid: rs.normCentroid,
-        angle: rs.normAngle,
-      }
-      const mixedOf = (normF: StrokeFeatures, boxF: StrokeFeatures): number =>
-        wShape * pairCost(pairMetrics(normF, refNormF, cfg.dtwBand), cfg.weights) +
-        wBox * pairCost(pairMetrics(boxF, refBoxF, cfg.dtwBand), cfg.weights)
-
-      let best = Math.min(mixedOf(ink.normF[u], ink.boxF[u]), mixedOf(ink.normFRev[u], ink.boxFRev[u]))
-      // O のような閉曲線は書き始めの位置が人によって違うため、開始位置を回して最小を取る
-      if (isClosedLoop(rs.norm) && isClosedLoop(ink.norm[u])) {
-        const n = ink.norm[u].length
-        for (let k = 1; k < 8; k++) {
-          const off = Math.round((n * k) / 8)
-          const normRot = rotated(ink.norm[u], off)
-          const boxRot = rotated(ink.box[u], off)
-          best = Math.min(
-            best,
-            mixedOf(strokeFeatures(normRot), strokeFeatures(boxRot)),
-            mixedOf(strokeFeatures([...normRot].reverse()), strokeFeatures([...boxRot].reverse()))
-          )
-        }
-      }
-      row.push(best)
+  let best = Math.min(
+    evalOne(u.norm, u.box),
+    evalOne([...u.norm].reverse(), [...u.box].reverse())
+  )
+  // O のような閉曲線は書き始めの位置が人によって違うため、開始位置を回して最小を取る
+  if (isClosedLoop(r.norm) && isClosedLoop(u.norm)) {
+    const n = u.norm.length
+    for (let k = 1; k < 8; k++) {
+      const off = Math.round((n * k) / 8)
+      const normRot = rotated(u.norm, off)
+      const boxRot = rotated(u.box, off)
+      best = Math.min(
+        best,
+        evalOne(normRot, boxRot),
+        evalOne([...normRot].reverse(), [...boxRot].reverse())
+      )
     }
-    cost.push(row)
   }
+  return best
+}
 
-  const K = Math.max(userCount, refCount)
+/** ストローク列同士のマッチングコスト（Hungarian・PAD込み平均） */
+function matchCost(userSets: StrokeSet[], refSets: StrokeSet[], cfg: JudgeConfig): number {
+  const U = userSets.length
+  const R = refSets.length
+  const K = Math.max(U, R)
   const matrix: number[][] = []
   for (let u = 0; u < K; u++) {
     const row: number[] = []
     for (let r = 0; r < K; r++) {
-      if (u < userCount && r < refCount) row.push(cost[u][r])
+      if (u < U && r < R) row.push(pairMixedCost(userSets[u], refSets[r], cfg))
       else row.push(PAD_COST)
     }
     matrix.push(row)
   }
   const assignment = hungarian(matrix)
-
   let total = 0
   for (let u = 0; u < K; u++) {
     const r = assignment[u]
-    if (u < userCount && r >= 0 && r < refCount) total += cost[u][r]
+    if (u < U && r >= 0 && r < R) total += matrix[u][r]
     else total += PAD_COST
   }
-  const diff = Math.abs(userCount - refCount)
-  const avg = total / K + diff * cfg.strokeCountPenalty
-  return { letter, cost: avg, countMatch: diff === 0 }
+  return total / K
+}
+
+/**
+ * 連結バリアント1回あたりのコスト加算。
+ * 続け書きは正当な書き方として認めつつ、画数どおりの別文字（例: Bを書いたのに
+ * E(4画連結)扱い）にすり替わるのを防ぐための小さなハンデ。
+ */
+const JOIN_PENALTY = 0.05
+
+/** 1候補文字との混合平均コスト（続け書き・分け書きのバリアント込み） */
+function costAgainst(ink: PreparedInk, letter: string, cfg: JudgeConfig): LetterCandidate {
+  const ref = getRefLetter(letter, cfg.resampleN)
+  const refSets: StrokeSet[] = ref.strokes.map((rs) => ({ norm: rs.norm, box: rs.box }))
+  const userSets = ink.sets
+  const diff = Math.abs(userSets.length - refSets.length)
+
+  // 基本: そのままの画数で照合（画数差はペナルティ）
+  let best = matchCost(userSets, refSets, cfg) + diff * cfg.strokeCountPenalty
+  let viaVariant = false
+
+  // ユーザーの画数が少ない（続け書き）→ お手本側を連結して照合
+  for (const variant of mergeVariants(refSets, userSets.length, cfg.resampleN)) {
+    const c = matchCost(userSets, variant.sets, cfg) + variant.joins * JOIN_PENALTY
+    if (c < best) {
+      best = c
+      viaVariant = true
+    }
+  }
+  // ユーザーの画数が多い（分け書き）→ ユーザー側を連結して照合
+  for (const variant of mergeVariants(userSets, refSets.length, cfg.resampleN)) {
+    const c = matchCost(variant.sets, refSets, cfg) + variant.joins * JOIN_PENALTY
+    if (c < best) {
+      best = c
+      viaVariant = true
+    }
+  }
+
+  return { letter, cost: best, countMatch: diff === 0 || viaVariant, viaVariant }
 }
 
 /**
@@ -192,11 +258,11 @@ export function classifyLetter(
   const cands = candidates ?? listRefLetters()
   if (strokesPx.length === 0) return { ranking: [], userCount: 0, droppedTinyStrokes: 0 }
   const ink = prepareInk(strokesPx, boxSizePx, cfg)
-  if (ink.norm.length === 0) return { ranking: [], userCount: 0, droppedTinyStrokes: ink.dropped }
+  if (ink.sets.length === 0) return { ranking: [], userCount: 0, droppedTinyStrokes: ink.dropped }
   const ranking = cands
     .map((c) => costAgainst(ink, c, cfg))
     .sort((a, b) => a.cost - b.cost)
-  return { ranking, userCount: ink.norm.length, droppedTinyStrokes: ink.dropped }
+  return { ranking, userCount: ink.sets.length, droppedTinyStrokes: ink.dropped }
 }
 
 export interface ExpectedLetterJudge {
@@ -234,11 +300,14 @@ export function judgeExpectedLetter(
   const expectedCost = expectedCand?.cost ?? Infinity
   const shapeOk = expectedCost <= cfg.letterPassCost
 
-  // 明らかに別の文字: 最良候補が別文字で、期待文字よりはっきり近く、期待文字自体も微妙なとき
-  const bestIsOther = !forms.has(best.letter)
+  // 明らかに別の文字: 「画数どおりに書かれた別文字」が期待文字よりはっきり近く、
+  // 期待文字自体も微妙なとき。連結バリアント経由でしか近づけない候補は
+  // 別文字の証拠として弱いので使わない（続け書きの正字を誤って弾かないため）
+  const bestSolid = res.ranking.find((c) => !c.viaVariant) ?? best
+  const bestIsOther = !forms.has(bestSolid.letter)
   const clearlyDifferent =
     bestIsOther &&
-    best.cost + cfg.distinctMargin < expectedCost &&
+    bestSolid.cost + cfg.distinctMargin < expectedCost &&
     expectedCost > cfg.letterPassCost * cfg.distinctRatio
 
   return {
@@ -285,7 +354,7 @@ export function judgeWord(
         clearlyDifferent: false,
         recognized: null,
         ranking: [],
-      })
+      } satisfies ExpectedLetterJudge)
       recognized += '_'
       continue
     }

@@ -12,6 +12,7 @@ import type { InkStroke } from '../core/ink/types'
 import { getWord } from '../data/words'
 import { awardStudy, checkMilestones, type ExpGrantEvents } from '../game/logic'
 import { playCorrect, playFinish, playPerfect, playWrong } from '../audio/sound'
+import { speakWord } from '../audio/tts'
 import { useAutoSpeak } from '../audio/useSpeech'
 import { useProfile } from '../state/hooks'
 import { bumpData, navigate, showToast, type Route } from '../state/store'
@@ -121,8 +122,9 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase === 'running', index])
 
-  // listen問題: 出題と同時に発音（仕様 §18）。ja問題は読み上げない（仕様 §17）
-  useAutoSpeak(phase === 'running' && qType === 'listen' ? (word?.en ?? null) : null, 'word', `${index}`)
+  // 出題と同時に答えの単語を自動発音する（2026-08-08フィードバック:
+  // 5問テスト・まとめテスト・復習とも、音とつづりを結びつけるため発音する）
+  useAutoSpeak(phase === 'running' ? (word?.en ?? null) : null, 'word', `${index}-${qType}`)
   // reveal（答えを見る）画面では答えを発音する
   useAutoSpeak(phase === 'reveal' ? (word?.en ?? null) : null, 'word', `reveal-${index}`)
 
@@ -293,6 +295,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
   const retryWrite = () => {
     setWrong(null)
     setRetrySeq((s) => s + 1) // ×だった文字のボックスだけ消えて再開する
+    if (word) void speakWord(word.en) // やり直しのたびに発音する（2026-08-08フィードバック）
   }
 
   const markWrongOrUnknown = async (result: 'wrong' | 'unknown') => {
@@ -490,7 +493,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
       <div className="split">
         <div className="split-left">
           {qType === 'ja' ? (
-            <WordCard wordId={wordId} showEn={false} showJa showIllustration showSpeak={false} big />
+            <WordCard wordId={wordId} showEn={false} showJa showIllustration showSpeak big />
           ) : (
             <div className="card word-card word-card-big">
               <div className="word-card-listen">👂 きこえた ことばを かこう</div>

@@ -237,6 +237,7 @@ export function LearnFlow({ stageId }: { stageId: string }) {
     setWrongMsg(null)
     setWrongMarks(null)
     setRetrySeq((s) => s + 1) // ×だった文字のボックスだけ消えて再開する
+    void speakWord(word.en) // やり直しのたびに発音する（2026-08-08フィードバック）
   }
 
   if (phase === 'init') return <LoadingView />
