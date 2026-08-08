@@ -234,13 +234,23 @@ export function playCorrect() {
   bell(c, t + 0.16, N(19), 0.7, 0.2, { p2: 0.34, p4: 0.12 })
 }
 
-/** 不正解: 「もう一度やってみよう」のやわらかい音（否定的なブザー禁止。仕様 §20） */
+/** 不正解: 低めの「ポンッ」（まちがいと分かるが、こわくない音。仕様 §20 + 2026-08-08 第6回） */
 export function playWrong() {
   const c = seCtx('wrong')
-  if (!c) return
+  if (!c || !seBus) return
   const t = c.currentTime
-  bell(c, t, N(-5), 0.22, 0.08, { p2: 0.15, p4: 0 })
-  bell(c, t + 0.17, N(-9), 0.4, 0.07, { p2: 0.15, p4: 0 })
+  const o = c.createOscillator()
+  const g = c.createGain()
+  o.type = 'triangle'
+  o.frequency.setValueAtTime(240, t)
+  o.frequency.exponentialRampToValueAtTime(130, t + 0.12)
+  g.gain.setValueAtTime(0.0001, t)
+  g.gain.exponentialRampToValueAtTime(0.22, t + 0.008)
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18)
+  o.connect(g)
+  g.connect(seBus)
+  o.start(t)
+  o.stop(t + 0.22)
 }
 
 /** なぞり1画OK: 小さなポップ */

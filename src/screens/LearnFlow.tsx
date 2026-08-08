@@ -14,9 +14,10 @@ import { playCorrect, playPerfect, playWrong } from '../audio/sound'
 import { useAutoSpeak } from '../audio/useSpeech'
 import { speakWord } from '../audio/tts'
 import { useProfile } from '../state/hooks'
-import { bumpData, navigate, type Route } from '../state/store'
+import { bumpData, navigate, showToast, type Route } from '../state/store'
 import {
   addActivity,
+  clearUnknownWord,
   deletePracticeSession,
   getPracticeSession,
   getWordProgress,
@@ -53,9 +54,18 @@ export function LearnFlow({ stageId }: { stageId: string }) {
   const [tries, setTries] = useState(0)
   const [retrySeq, setRetrySeq] = useState(0)
   const [wrongMarks, setWrongMarks] = useState<(boolean | null)[] | null>(null)
+  const [padLocked, setPadLocked] = useState(false)
   const [showModelHelp, setShowModelHelp] = useState(false)
   const [mark, setMark] = useState<'correct' | 'wrong' | null>(null)
   const [wrongMsg, setWrongMsg] = useState<string | null>(null)
+  const autoRetryRef = useRef<number | null>(null)
+
+  const cancelAutoRetry = () => {
+    if (autoRetryRef.current != null) {
+      window.clearTimeout(autoRetryRef.current)
+      autoRetryRef.current = null
+    }
+  }
   const [buddyMood, setBuddyMood] = useState<BuddyMood>('idle')
   const [resultCoins, setResultCoins] = useState<{ amount: number; breakdown: CoinBreakdownItem[] } | null>(null)
   const [saved, setSaved] = useState<{ wordIdx: number; step: number } | null>(null)
@@ -181,6 +191,12 @@ export function LearnFlow({ stageId }: { stageId: string }) {
   const advance = async (stepDone: number) => {
     await grantStepReward(stepDone)
     await updateProgress(stepDone)
+    if (stepDone === 3) {
+      // STEP4（日本語だけで書けた）まで練習できたら「わからなかった ことば」から卒業
+      // （2026-08-08 第6回フィードバック）
+      const removed = await clearUnknownWord(profile.id, wordId)
+      if (removed) showToast(`「${word.en}」が わからなかったことばから きえたよ！`)
+    }
     if (stepDone < 3) {
       const next = stepDone + 1
       setStep(next)
@@ -193,10 +209,12 @@ export function LearnFlow({ stageId }: { stageId: string }) {
       await finishStage()
       return
     }
+    cancelAutoRetry()
     setTries(0)
     setShowModelHelp(false)
     setWrongMsg(null)
     setWrongMarks(null)
+    setPadLocked(false)
   }
 
   const handleJudged = (res: WordJudgeResult, perBox: Pt[][][], allStrokes: InkStroke[], boxSize: number) => {
@@ -211,6 +229,9 @@ export function LearnFlow({ stageId }: { stageId: string }) {
     )
     if (res.correct) {
       busyRef.current = true
+      cancelAutoRetry()
+      setWrongMsg(null)
+      setWrongMarks(null)
       setMark('correct')
       playCorrect()
       setBuddyMood('happy')
@@ -223,21 +244,23 @@ export function LearnFlow({ stageId }: { stageId: string }) {
     } else {
       playWrong()
       setMark('wrong')
-      // どの文字が×だったかをボックスに表示し、×の文字だけ書き直せるようにする
+      // ×の表示を見せたあと、自動で×の文字だけ消して書き直しモードにする
       setWrongMarks(res.letters.map((l) => l.correct))
       const wrongCount = res.letters.filter((l) => !l.correct).length
-      const emptyMsg = res.hasEmptyBox ? 'まだ かいていない マスがあるよ。' : ''
-      setWrongMsg(`${emptyMsg}×の ${wrongCount}もじだけ かきなおそう`)
+      setWrongMsg(
+        res.hasEmptyBox ? 'まだ かいていない マスがあるよ。つづきを かこう' : `おしい！ ×の ${wrongCount}もじを かきなおそう`
+      )
+      setPadLocked(true)
       setTries((t) => t + 1)
       window.setTimeout(() => setMark(null), 900)
+      cancelAutoRetry()
+      autoRetryRef.current = window.setTimeout(() => {
+        setWrongMarks(null)
+        setRetrySeq((s) => s + 1) // ×だった文字のボックスだけ消える
+        setPadLocked(false)
+        void speakWord(word.en) // やり直しのたびに発音する
+      }, 1600)
     }
-  }
-
-  const retry = () => {
-    setWrongMsg(null)
-    setWrongMarks(null)
-    setRetrySeq((s) => s + 1) // ×だった文字のボックスだけ消えて再開する
-    void speakWord(word.en) // やり直しのたびに発音する（2026-08-08フィードバック）
   }
 
   if (phase === 'init') return <LoadingView />
@@ -318,22 +341,23 @@ export function LearnFlow({ stageId }: { stageId: string }) {
           {wrongMsg && (
             <div className="feedback fb-wrong">
               <p className="feedback-soft">{wrongMsg}</p>
-              <div className="row gap">
-                <Button onClick={retry}>かきなおす</Button>
-                {tries >= 2 && !showModelHelp && (
+              {tries >= 2 && !showModelHelp && (
+                <div className="row gap">
                   <Button
                     variant="secondary"
                     onClick={() => {
+                      cancelAutoRetry()
                       setShowModelHelp(true)
                       setWrongMsg(null)
                       setWrongMarks(null)
+                      setPadLocked(false)
                       void speakWord(word.en)
                     }}
                   >
                     おてほんを 見る
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
           <BuddyCorner mood={buddyMood} />
@@ -346,7 +370,7 @@ export function LearnFlow({ stageId }: { stageId: string }) {
             retryToken={retrySeq}
             perLetterMarks={wrongMarks}
             onJudged={handleJudged}
-            disabled={mark === 'correct' || wrongMsg != null}
+            disabled={mark === 'correct' || padLocked}
             overlay={mark ? <JudgeMark kind={mark} /> : null}
           />
         </div>

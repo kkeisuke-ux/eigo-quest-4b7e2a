@@ -61,9 +61,18 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
   const [index, setIndex] = useState(0)
   const [items, setItems] = useState<TestItemRecord[]>([])
   const [qType, setQType] = useState<QType>('ja')
-  const [wrong, setWrong] = useState<{ recognized: string; hasEmpty: boolean; marks: (boolean | null)[] } | null>(null)
+  const [wrong, setWrong] = useState<{ msg: string; marks: (boolean | null)[] | null } | null>(null)
+  const [padLocked, setPadLocked] = useState(false)
   const [tries, setTries] = useState(0)
   const [retrySeq, setRetrySeq] = useState(0)
+  const autoRetryRef = useRef<number | null>(null)
+
+  const cancelAutoRetry = () => {
+    if (autoRetryRef.current != null) {
+      window.clearTimeout(autoRetryRef.current)
+      autoRetryRef.current = null
+    }
+  }
   const [mark, setMark] = useState<'correct' | 'wrong' | null>(null)
   const [resultCoins, setResultCoins] = useState<{ amount: number; breakdown: CoinBreakdownItem[] } | null>(null)
   const [showCelebration, setShowCelebration] = useState(false)
@@ -117,10 +126,14 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
   useEffect(() => {
     if (phase !== 'running') return
     setQType(listenRatio > 0 && Math.random() < listenRatio ? 'listen' : 'ja')
+    cancelAutoRetry()
     setWrong(null)
+    setPadLocked(false)
     setTries(0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase === 'running', index])
+
+  useEffect(() => cancelAutoRetry, [])
 
   // 出題と同時に答えの単語を自動発音する（2026-08-08フィードバック:
   // 5問テスト・まとめテスト・復習とも、音とつづりを結びつけるため発音する）
@@ -253,6 +266,8 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
       }
       const newItems = [...itemsRef.current, item]
       setItemsBoth(newItems)
+      cancelAutoRetry()
+      setWrong(null)
       setMark('correct')
       playCorrect()
       happyBuddy()
@@ -282,25 +297,34 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
     if (res.correct) {
       void finalizeCorrect(res, allStrokes, boxSize)
     } else {
-      // 不正解: 記録はまだ確定せず、×の文字だけその場で書き直せる（仕様 §20 + 2026-08-08）
+      // 不正解: 記録はまだ確定しない。×の表示を見せたあと、
+      // 自動で×の文字だけ消して書き直しモードにする（2026-08-08 第6回: ボタン操作不要）
       playWrong()
       void saveSample(profile.id, word?.en ?? wordId, { verdict: 'wrong', recognized: res.recognized, score: 0 }, allStrokes, boxSize, kind === 'review' ? 'review' : 'test')
-      setWrong({ recognized: res.recognized, hasEmpty: res.hasEmptyBox, marks: res.letters.map((l) => l.correct) })
+      const wrongCount = res.letters.filter((l) => !l.correct).length
+      const msg = res.hasEmptyBox
+        ? 'まだ かいていない マスがあるよ。つづきを かこう'
+        : `おしい！ ×の ${wrongCount}もじを かきなおそう`
+      setWrong({ msg, marks: res.letters.map((l) => l.correct) })
+      setPadLocked(true)
       setTries((t) => t + 1)
       setMark('wrong')
       window.setTimeout(() => setMark(null), 900)
+      cancelAutoRetry()
+      autoRetryRef.current = window.setTimeout(() => {
+        setWrong((w) => (w ? { ...w, marks: null } : w))
+        setRetrySeq((s) => s + 1) // ×だった文字のボックスだけ消える
+        setPadLocked(false)
+        if (word) void speakWord(word.en) // やり直しのたびに発音する
+      }, 1600)
     }
-  }
-
-  const retryWrite = () => {
-    setWrong(null)
-    setRetrySeq((s) => s + 1) // ×だった文字のボックスだけ消えて再開する
-    if (word) void speakWord(word.en) // やり直しのたびに発音する（2026-08-08フィードバック）
   }
 
   const markWrongOrUnknown = async (result: 'wrong' | 'unknown') => {
     if (busyRef.current) return
     busyRef.current = true
+    cancelAutoRetry()
+    setPadLocked(false)
     try {
       const item: TestItemRecord = { wordId, result, retries: tries }
       const newItems = [...itemsRef.current, item]
@@ -387,8 +411,10 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
             )}
             <BuddyCorner mood={perfect ? 'celebrate' : 'idle'} size={100} message={perfect ? 'すごーい！' : 'さいごまで できたね！'} />
             <div className="result-score">
+              {kind === 'review' ? 'ふくしゅう おわり！　' : ''}
               {items.length}問中 {correct}問 せいかい！
             </div>
+            {kind === 'review' && <p className="termtest-status">ふくしゅうを がんばったから <b>コインを ゲット！</b></p>}
             <div className="result-rate">せいとうりつ {rate}%</div>
             {resultCoins && !(kind === 'term' && perfect && showCelebration) && (
               <CoinReward amount={resultCoins.amount} breakdown={resultCoins.breakdown} />
@@ -510,19 +536,14 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
           )}
           {wrong && (
             <div className="feedback fb-wrong">
-              <p className="feedback-soft">
-                {wrong.hasEmpty
-                  ? 'まだ かいていない マスがあるよ。'
-                  : `おしい！ ×の ${wrong.marks.filter((m) => m === false).length}もじだけ かきなおそう`}
-              </p>
-              <div className="row gap">
-                <Button onClick={retryWrite}>かきなおす</Button>
-                {tries >= 2 && (
+              <p className="feedback-soft">{wrong.msg}</p>
+              {tries >= 2 && (
+                <div className="row gap">
                   <Button variant="secondary" onClick={() => void markWrongOrUnknown('wrong')}>
                     こたえを 見る
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
           <BuddyCorner mood={buddyMood} />
@@ -535,7 +556,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
             perLetterMarks={wrong?.marks ?? null}
             caseInsensitive
             onJudged={handleJudged}
-            disabled={mark === 'correct' || wrong != null}
+            disabled={mark === 'correct' || padLocked}
             overlay={mark ? <JudgeMark kind={mark} /> : null}
             extraFooter={
               <Button variant="secondary" size="sm" onClick={() => void markWrongOrUnknown('unknown')} disabled={mark != null}>
