@@ -86,8 +86,18 @@ export function Friends() {
                   <CharacterSprite speciesId={o.speciesId} stage={o.stage} size={110} />
                   <div className="friend-info">
                     <p className="friend-name">{sp.stages[o.stage].name}</p>
-                    <p className="friend-line">{sp.lineName}　Lv.{o.level}</p>
-                    <ExpBar level={o.level} exp={o.exp} />
+                    <p className="friend-line">
+                      {sp.lineName}　だんかい {o.stage + 1} / {sp.stages.length}
+                    </p>
+                    <p className="friend-desc">{sp.stages[o.stage].desc}</p>
+                    {!info.maxed && <ExpBar stage={o.stage} exp={o.exp} />}
+                    {info.maxed ? (
+                      <p className="friend-maxed">🌟 さいごまで しんかした！</p>
+                    ) : (
+                      <p className="friend-next">
+                        つぎの しんかまで EXP {info.expLeft}（スター あと<b>{info.starsLeft}こ</b>）
+                      </p>
+                    )}
                     {info.tease && <p className="buddy-tease">もうすぐ なにかが おこりそう……</p>}
                     <div className="row gap-sm wrap">
                       {isBuddy ? (

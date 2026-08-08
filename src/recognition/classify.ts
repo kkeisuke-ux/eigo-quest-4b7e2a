@@ -72,6 +72,10 @@ interface StrokeSet {
 interface PreparedInk {
   sets: StrokeSet[]
   dropped: number
+  /** box系(0..1)でのインク全体bbox（スクリーニング用） */
+  boxBBox: { cx: number; cy: number; w: number; h: number }
+  /** box系の総画長（スクリーニング用） */
+  totalLen: number
 }
 
 function prepareInk(strokesPx: Pt[][], boxSizePx: number, cfg: JudgeConfig): PreparedInk {
@@ -96,7 +100,35 @@ function prepareInk(strokesPx: Pt[][], boxSizePx: number, cfg: JudgeConfig): Pre
     box: resample(s, cfg.resampleN).map((p) => ({ x: p.x / REF_VIEWBOX, y: p.y / REF_VIEWBOX })),
     norm: resample(applyCharTransform(s, t), cfg.resampleN),
   }))
-  return { sets, dropped }
+  const totalLen = sets.reduce((acc, s) => acc + polylineLength(s.box), 0)
+  return {
+    sets,
+    dropped,
+    boxBBox: {
+      cx: inkBBox.cx / REF_VIEWBOX,
+      cy: inkBBox.cy / REF_VIEWBOX,
+      w: inkBBox.w / REF_VIEWBOX,
+      h: inkBBox.h / REF_VIEWBOX,
+    },
+    totalLen,
+  }
+}
+
+/** 軽量スクリーニング（DTWなし）: bbox位置・大きさ・総画長・画数だけの安価な距離 */
+function cheapCost(ink: PreparedInk, letter: string, cfg: JudgeConfig): number {
+  const ref = getRefLetter(letter, cfg.resampleN)
+  const rb = ref.bbox
+  const rcx = rb.cx / REF_VIEWBOX
+  const rcy = rb.cy / REF_VIEWBOX
+  const rw = rb.w / REF_VIEWBOX
+  const rh = rb.h / REF_VIEWBOX
+  const refLen = ref.strokes.reduce((acc, s) => acc + polylineLength(s.box), 0)
+  const b = ink.boxBBox
+  const centerD = Math.hypot(b.cx - rcx, b.cy - rcy)
+  const sizeD = Math.abs(b.w - rw) + Math.abs(b.h - rh)
+  const lenD = Math.abs(ink.totalLen - refLen) / Math.max(refLen, 0.2)
+  const countD = Math.abs(ink.sets.length - ref.strokeCount)
+  return centerD * 1.2 + sizeD * 1.0 + lenD * 0.7 + countD * 0.25
 }
 
 /** 閉曲線（O・o など、始点と終点がほぼつながる画）か */
@@ -255,18 +287,30 @@ function costAgainst(ink: PreparedInk, letter: string, cfg: JudgeConfig): Letter
 
 /**
  * 自由筆記1文字の分類。candidates省略時は52文字すべてと照合する。
+ * 高速化のため、軽量スクリーニングで上位候補に絞ってからフル照合する
+ * （mustInclude の文字は必ずフル照合に含める）。
  */
 export function classifyLetter(
   strokesPx: Pt[][],
   boxSizePx: number,
   cfg: JudgeConfig = DEFAULT_JUDGE_CONFIG,
-  candidates?: string[]
+  candidates?: string[],
+  mustInclude?: string[]
 ): ClassifyResult {
   const cands = candidates ?? listRefLetters()
   if (strokesPx.length === 0) return { ranking: [], userCount: 0, droppedTinyStrokes: 0 }
   const ink = prepareInk(strokesPx, boxSizePx, cfg)
   if (ink.sets.length === 0) return { ranking: [], userCount: 0, droppedTinyStrokes: ink.dropped }
-  const ranking = cands
+  let pool = cands
+  if (cands.length > 16) {
+    const scored = cands.map((c) => ({ c, s: cheapCost(ink, c, cfg) })).sort((a, b) => a.s - b.s)
+    const top = new Set(scored.slice(0, 12).map((x) => x.c))
+    for (const m of mustInclude ?? []) {
+      if (cands.includes(m)) top.add(m)
+    }
+    pool = [...top]
+  }
+  const ranking = pool
     .map((c) => costAgainst(ink, c, cfg))
     .sort((a, b) => a.cost - b.cost)
   return { ranking, userCount: ink.sets.length, droppedTinyStrokes: ink.dropped }
@@ -298,11 +342,12 @@ export function judgeExpectedLetter(
   candidates?: string[],
   opts: JudgeLetterOptions = {}
 ): ExpectedLetterJudge {
-  const res = classifyLetter(strokesPx, boxSizePx, cfg, candidates)
+  const formsArr = equivalentForms(expected, opts.caseInsensitive)
+  const res = classifyLetter(strokesPx, boxSizePx, cfg, candidates, formsArr)
   if (res.ranking.length === 0) {
     return { correct: false, expectedCost: Infinity, shapeOk: false, clearlyDifferent: false, recognized: null, ranking: [] }
   }
-  const forms = new Set(equivalentForms(expected, opts.caseInsensitive))
+  const forms = new Set(formsArr)
   const expectedCand = res.ranking.filter((c) => forms.has(c.letter)).sort((a, b) => a.cost - b.cost)[0]
   const best = res.ranking[0]
   const expectedCost = expectedCand?.cost ?? Infinity

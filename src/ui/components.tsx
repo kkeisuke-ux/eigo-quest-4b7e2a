@@ -30,7 +30,7 @@ export function StatusChips() {
       {data.buddy && (
         <span className="badge buddy-chip">
           <CharacterSprite speciesId={data.buddy.speciesId} stage={data.buddy.stage} size={22} />
-          <span>Lv.{data.buddy.level}</span>
+          <span>だんかい{data.buddy.stage + 1}</span>
         </span>
       )}
     </span>
@@ -166,8 +166,9 @@ export function WordChip({ text, state = 'none', onClick }: { text: string; stat
   )
 }
 
-export function ExpBar({ level, exp }: { level: number; exp: number }) {
-  const need = expToNext(level)
+/** つぎの進化までのEXPバー（レベル=進化段階モデル） */
+export function ExpBar({ stage, exp }: { stage: number; exp: number }) {
+  const need = expToNext(stage)
   const pct = Math.min(100, Math.round((exp / need) * 100))
   return (
     <div className="expbar" title={`${exp}/${need}`}>

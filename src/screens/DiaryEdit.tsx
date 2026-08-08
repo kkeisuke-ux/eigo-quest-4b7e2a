@@ -8,7 +8,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { GAME_CONFIG } from '../config/gameConfig'
 import { getAppFlags } from '../config/appFlags'
 import { InkCanvas, type InkCanvasHandle } from '../core/ink/InkCanvas'
-import { checkDiaryText } from '../diary/correction'
 import { printDiary } from '../diary/pdf'
 import { fromStored, toStored } from '../diary/strokeStore'
 import { searchSentences, type SentenceItem } from '../data/sentences'
@@ -61,9 +60,6 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
   const [penColor, setPenColor] = useState(PEN_COLORS[0])
   const [penWidth, setPenWidth] = useState(5)
   const [textEraser, setTextEraser] = useState(false)
-  const [text, setText] = useState('')
-  const [checked, setChecked] = useState<{ corrected: string | null; notes: string[] } | null>(null)
-  const [includeCorrection, setIncludeCorrection] = useState(true)
   const [helperQuery, setHelperQuery] = useState('')
   const [helperResults, setHelperResults] = useState<SentenceItem[] | null>(null)
   const [listening, setListening] = useState(false)
@@ -79,11 +75,7 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
       const entry = await getDiaryEntry(profile.id, dateKey)
       if (!alive) return
       setExisting(entry ?? null)
-      if (entry) {
-        setText(entry.originalText)
-        if (entry.correctedText != null) setChecked({ corrected: entry.correctedText, notes: entry.correctionNotes })
-        restoreRef.current = true
-      }
+      if (entry) restoreRef.current = true
       setLoaded(true)
     })()
     return () => {
@@ -112,19 +104,6 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
   useEffect(() => () => recognizerRef.current?.stop(), [])
 
   if (!profile || !loaded) return <LoadingView />
-
-  const runCheck = () => {
-    if (!text.trim()) {
-      showToast('チェックしたい えいぶんを 下のらんに うちこんでね')
-      return
-    }
-    const res = checkDiaryText(text)
-    setChecked(res.corrected != null ? res : { corrected: null, notes: [] })
-    if (res.corrected == null) {
-      playCorrect()
-      showToast('なおすところは なさそう！ すばらしい！')
-    }
-  }
 
   const searchHelper = (q?: string) => {
     const query = (q ?? helperQuery).trim()
@@ -165,11 +144,11 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
       dateKey,
       drawing: (draw?.getStrokes() ?? []).map((s) => toStored(s, 96)),
       drawingSize: draw?.getSize() ?? 0,
-      originalText: text.trim(),
+      originalText: '',
       textStrokes: (txt?.getStrokes() ?? []).map((s) => toStored(s, 64)),
       textBoxWidth: txt?.getSize() ?? 0,
-      correctedText: checked?.corrected ?? existing?.correctedText ?? null,
-      correctionNotes: checked?.corrected != null ? checked.notes : (existing?.correctionNotes ?? []),
+      correctedText: null,
+      correctionNotes: [],
       createdAt: existing?.createdAt ?? Date.now(),
       updatedAt: Date.now(),
     }
@@ -177,7 +156,7 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
 
   const save = async () => {
     const rec = buildRecord()
-    if (rec.drawing.length === 0 && !rec.originalText && rec.textStrokes.length === 0) {
+    if (rec.drawing.length === 0 && rec.textStrokes.length === 0) {
       showToast('えか えいごを かいてから ほぞんしてね')
       return
     }
@@ -199,7 +178,7 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
     await saveDiaryEntry(rec)
     setExisting(rec)
     bumpData()
-    const ok = printDiary(rec, { includeCorrection, profileName: profile.name })
+    const ok = printDiary(rec, { includeCorrection: false, profileName: profile.name })
     if (!ok) showToast('ポップアップが ひらけませんでした。Safariの せっていを かくにんしてね')
   }
 
@@ -293,17 +272,6 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
                   <b className="lookup-en">{s.en}</b>
                   <span className="lookup-ja">{s.ja}</span>
                   <SpeakButton text={s.en} kind="sentence" size="sm" />
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      setText((t) => (t.trim() ? `${t.trim()} ${s.en}` : s.en))
-                      setChecked(null)
-                      showToast('チェックらんに いれたよ。見ながら かいてみよう！')
-                    }}
-                  >
-                    つかう
-                  </Button>
                 </li>
               ))}
             </ul>
@@ -336,66 +304,12 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
             guide={<TextRuleLines rows={TEXT_ROWS} className="rule-svg" />}
             className="diary-canvas diary-text-canvas"
           />
-          <div className="diary-text-review">
-            <label className="diary-tool-label" htmlFor="diary-text">
-              えいぶんチェックを つかいたいときは、かいた文を ここに うちこんでね（なくてもOK）:
-            </label>
-            <div className="row gap">
-              <input
-                id="diary-text"
-                className="diary-text-input"
-                value={text}
-                onChange={(e) => {
-                  setText(e.target.value)
-                  setChecked(null)
-                }}
-                placeholder="I went to the park."
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-              {text.trim() && <SpeakButton text={text} kind="sentence" size="md" />}
-            </div>
-          </div>
-          <div className="row gap wrap">
-            <Button variant="accent" onClick={runCheck} disabled={!text.trim()}>
-              えいぶんを チェック
-            </Button>
-          </div>
-          {checked && checked.corrected != null && (
-            <div className="diary-correction">
-              <div className="diary-corr-block">
-                <div className="diary-corr-label">あなたの文</div>
-                <div className="diary-corr-text">
-                  {text}
-                  <SpeakButton text={text} kind="sentence" size="sm" />
-                </div>
-              </div>
-              <div className="diary-corr-arrow">↓</div>
-              <div className="diary-corr-block diary-corr-suggest">
-                <div className="diary-corr-label">こう書くと もっと自然だよ</div>
-                <div className="diary-corr-text">
-                  {checked.corrected}
-                  <SpeakButton text={checked.corrected} kind="sentence" size="sm" />
-                </div>
-                <ul className="diary-corr-notes">
-                  {checked.notes.map((n, i) => (
-                    <li key={i}>{n}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
         </Card>
 
         <div className="row gap wrap diary-actions">
           <Button size="lg" variant="accent" onClick={() => void save()}>
             ほぞんする
           </Button>
-          <label className="diary-pdf-opt">
-            <input type="checkbox" checked={includeCorrection} onChange={(e) => setIncludeCorrection(e.target.checked)} />
-            チェックした文も PDFに いれる
-          </label>
           <Button size="lg" variant="secondary" onClick={() => void exportPdf()}>
             PDFに する
           </Button>

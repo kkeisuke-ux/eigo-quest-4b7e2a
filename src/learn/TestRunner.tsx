@@ -31,6 +31,7 @@ import {
 import type { TestItemRecord, TestSessionRecord } from '../storage/models'
 import type { WordJudgeResult } from '../recognition/classify'
 import { BuddyCorner, type BuddyMood } from './BuddyCorner'
+import { CHEER, ENCOURAGE, PRAISE, pickCheer } from './cheer'
 import { WordCard } from './WordCard'
 import { WordPad } from './WordPad'
 import { saveSample } from './sampleUtil'
@@ -77,6 +78,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
   const [resultCoins, setResultCoins] = useState<{ amount: number; breakdown: CoinBreakdownItem[] } | null>(null)
   const [showCelebration, setShowCelebration] = useState(false)
   const [buddyMood, setBuddyMood] = useState<BuddyMood>('idle')
+  const [buddyMsg, setBuddyMsg] = useState<string | undefined>(undefined)
   const [savedSession, setSavedSession] = useState<TestSessionRecord | null>(null)
   const [revealDoneOnce, setRevealDoneOnce] = useState(false)
   const earnedRef = useRef(0)
@@ -149,8 +151,18 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
 
   const happyBuddy = (mood: BuddyMood = 'happy') => {
     setBuddyMood(mood)
+    setBuddyMsg(pickCheer(PRAISE))
     if (moodTimerRef.current != null) window.clearTimeout(moodTimerRef.current)
-    moodTimerRef.current = window.setTimeout(() => setBuddyMood('idle'), 1800)
+    moodTimerRef.current = window.setTimeout(() => {
+      setBuddyMood('idle')
+      setBuddyMsg(undefined)
+    }, 2200)
+  }
+
+  const encourageBuddy = () => {
+    setBuddyMsg(pickCheer(ENCOURAGE))
+    if (moodTimerRef.current != null) window.clearTimeout(moodTimerRef.current)
+    moodTimerRef.current = window.setTimeout(() => setBuddyMsg(undefined), 2600)
   }
 
   const resume = (fromSaved: boolean) => {
@@ -306,6 +318,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
         ? 'まだ かいていない マスがあるよ。つづきを かこう'
         : `おしい！ ×の ${wrongCount}もじを かきなおそう`
       setWrong({ msg, marks: res.letters.map((l) => l.correct) })
+      encourageBuddy()
       setPadLocked(true)
       setTries((t) => t + 1)
       setMark('wrong')
@@ -546,7 +559,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
               )}
             </div>
           )}
-          <BuddyCorner mood={buddyMood} />
+          <BuddyCorner mood={buddyMood} message={buddyMsg ?? (index % 3 === 0 ? pickCheer(CHEER) : undefined)} />
         </div>
         <div className="split-right">
           <WordPad

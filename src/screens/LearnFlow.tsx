@@ -1,8 +1,6 @@
-// 5語ステージの練習フロー（仕様 §13）。1単語につき:
+// 5語ステージの練習フロー（2026-08-08 第7回フィードバックで2ステップに簡略化）。1単語につき:
 //   STEP1 発音を聞きながら お手本をなぞる
-//   STEP2 もう一度、発音を聞きながら お手本をなぞる
-//   STEP3 お手本を見ながら 自分で書く
-//   STEP4 日本語の意味だけを見て 自分で書く
+//   STEP2 発音を聞きながら 自分で書く（日本語とイラストを見て）
 // 途中保存（practiceSessions）で続きから再開できる。
 import { useEffect, useRef, useState } from 'react'
 import { GAME_CONFIG } from '../config/gameConfig'
@@ -28,6 +26,7 @@ import {
 } from '../storage/repo'
 import type { WordJudgeResult } from '../recognition/classify'
 import { BuddyCorner, type BuddyMood } from '../learn/BuddyCorner'
+import { CHEER, ENCOURAGE, PRAISE, pickCheer } from '../learn/cheer'
 import { WordCard } from '../learn/WordCard'
 import { WordPad } from '../learn/WordPad'
 import { saveSample } from '../learn/sampleUtil'
@@ -36,12 +35,10 @@ import { CoinReward, type CoinBreakdownItem } from '../ui/CoinReward'
 import { JudgeMark } from '../ui/JudgeMark'
 import { queueEvolutionFromEvents } from '../ui/EvolutionModal'
 
-const STEP_LABELS = [
-  'STEP1 きいて なぞろう（1かいめ）',
-  'STEP2 きいて なぞろう（2かいめ）',
-  'STEP3 おてほんを 見ながら かこう',
-  'STEP4 日本語だけを 見て かこう',
-]
+const STEP_LABELS = ['STEP1 きいて なぞろう', 'STEP2 じぶんで かいてみよう']
+
+/** ステップ数（なぞり1回 + 自分で書く1回） */
+const LAST_STEP = 1
 
 type Phase = 'init' | 'askResume' | 'running' | 'done'
 
@@ -67,6 +64,7 @@ export function LearnFlow({ stageId }: { stageId: string }) {
     }
   }
   const [buddyMood, setBuddyMood] = useState<BuddyMood>('idle')
+  const [buddyMsg, setBuddyMsg] = useState<string | undefined>(undefined)
   const [resultCoins, setResultCoins] = useState<{ amount: number; breakdown: CoinBreakdownItem[] } | null>(null)
   const [saved, setSaved] = useState<{ wordIdx: number; step: number } | null>(null)
   const earnedRef = useRef({ trace: 0, copy: 0, recall: 0 })
@@ -98,9 +96,8 @@ export function LearnFlow({ stageId }: { stageId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id, phase])
 
-  // なぞり・見て書くステップでは表示と同時に自動発音（仕様 §12, §13）。
-  // STEP4（思い出して書く）は自動発音しない
-  const autoText = phase === 'running' && step <= 2 ? (word?.en ?? null) : null
+  // なぞりでも自分で書くステップでも、表示と同時に自動発音する（2026-08-08 第7回）
+  const autoText = phase === 'running' ? (word?.en ?? null) : null
   useAutoSpeak(autoText, 'word', `${wordIdx}-${step}`)
 
   if (!profile) return <LoadingView />
@@ -119,7 +116,7 @@ export function LearnFlow({ stageId }: { stageId: string }) {
   const resume = (fromSaved: boolean) => {
     if (fromSaved && saved) {
       setWordIdx(Math.min(saved.wordIdx, wordIds.length - 1))
-      setStep(Math.min(saved.step, 3))
+      setStep(Math.min(saved.step, LAST_STEP))
     } else {
       void deletePracticeSession(profile.id, stageId)
       setWordIdx(0)
@@ -131,17 +128,13 @@ export function LearnFlow({ stageId }: { stageId: string }) {
   const grantStepReward = async (stepDone: number) => {
     let coins = 0
     let reason = ''
-    if (stepDone <= 1) {
+    if (stepDone === 0) {
       coins = GAME_CONFIG.coins.wordTrace
       reason = 'なぞりれんしゅう'
       earnedRef.current.trace += coins
-    } else if (stepDone === 2) {
-      coins = GAME_CONFIG.coins.wordCopy
-      reason = '見ながら かけた'
-      earnedRef.current.copy += coins
     } else {
       coins = GAME_CONFIG.coins.wordRecall
-      reason = 'おもいだして かけた'
+      reason = 'じぶんで かけた'
       earnedRef.current.recall += coins
     }
     const reward = await awardStudy(profile.id, coins, GAME_CONFIG.exp.write, reason)
@@ -150,11 +143,10 @@ export function LearnFlow({ stageId }: { stageId: string }) {
 
   const updateProgress = async (stepDone: number) => {
     const p = await getWordProgress(profile.id, wordId)
-    if (stepDone <= 1) p.traceDone++
-    else if (stepDone === 2) p.copyDone++
+    if (stepDone === 0) p.traceDone++
     else p.recallDone++
     p.lastSeenAt = Date.now()
-    if (stepDone === 3) p.practicedAt = Date.now()
+    if (stepDone === LAST_STEP) p.practicedAt = Date.now()
     if (p.nextReviewAt == null) {
       const d = new Date()
       d.setHours(0, 0, 0, 0)
@@ -173,11 +165,10 @@ export function LearnFlow({ stageId }: { stageId: string }) {
     if (fresh) await checkMilestones(fresh, before, before)
     const e = earnedRef.current
     setResultCoins({
-      amount: e.trace + e.copy + e.recall + GAME_CONFIG.coins.stageClearBonus,
+      amount: e.trace + e.recall + GAME_CONFIG.coins.stageClearBonus,
       breakdown: [
         { label: 'なぞり', value: e.trace },
-        { label: '見ながら かけた', value: e.copy },
-        { label: 'おもいだして かけた', value: e.recall },
+        { label: 'じぶんで かけた', value: e.recall },
         { label: 'クリアボーナス', value: GAME_CONFIG.coins.stageClearBonus },
       ],
     })
@@ -191,13 +182,12 @@ export function LearnFlow({ stageId }: { stageId: string }) {
   const advance = async (stepDone: number) => {
     await grantStepReward(stepDone)
     await updateProgress(stepDone)
-    if (stepDone === 3) {
-      // STEP4（日本語だけで書けた）まで練習できたら「わからなかった ことば」から卒業
-      // （2026-08-08 第6回フィードバック）
+    if (stepDone === LAST_STEP) {
+      // 自分で書くところまで練習できたら「わからなかった ことば」から卒業
       const removed = await clearUnknownWord(profile.id, wordId)
       if (removed) showToast(`「${word.en}」が わからなかったことばから きえたよ！`)
     }
-    if (stepDone < 3) {
+    if (stepDone < LAST_STEP) {
       const next = stepDone + 1
       setStep(next)
       persist(wordIdx, next)
@@ -235,9 +225,11 @@ export function LearnFlow({ stageId }: { stageId: string }) {
       setMark('correct')
       playCorrect()
       setBuddyMood('happy')
+      setBuddyMsg(pickCheer(PRAISE))
       window.setTimeout(() => {
         setMark(null)
         setBuddyMood('idle')
+        setBuddyMsg(undefined)
         busyRef.current = false
         void advance(step)
       }, 1100)
@@ -250,6 +242,8 @@ export function LearnFlow({ stageId }: { stageId: string }) {
       setWrongMsg(
         res.hasEmptyBox ? 'まだ かいていない マスがあるよ。つづきを かこう' : `おしい！ ×の ${wrongCount}もじを かきなおそう`
       )
+      setBuddyMsg(pickCheer(ENCOURAGE))
+      window.setTimeout(() => setBuddyMsg(undefined), 2600)
       setPadLocked(true)
       setTries((t) => t + 1)
       window.setTimeout(() => setMark(null), 900)
@@ -321,8 +315,8 @@ export function LearnFlow({ stageId }: { stageId: string }) {
     )
   }
 
-  const isTrace = step <= 1 || showModelHelp
-  const showEn = step <= 2 || showModelHelp
+  const isTrace = step === 0 || showModelHelp
+  const showEn = step === 0 || showModelHelp
 
   return (
     <div className="screen">
@@ -360,7 +354,7 @@ export function LearnFlow({ stageId }: { stageId: string }) {
               )}
             </div>
           )}
-          <BuddyCorner mood={buddyMood} />
+          <BuddyCorner mood={buddyMood} message={buddyMsg ?? (wordIdx % 2 === 0 && step === 0 ? pickCheer(CHEER) : undefined)} />
         </div>
         <div className="split-right">
           <WordPad

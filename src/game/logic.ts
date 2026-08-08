@@ -20,7 +20,9 @@ import {
 import { showToast } from '../state/store'
 
 export interface ExpGrantEvents {
+  /** 進化した段階数 */
   levelsGained: number
+  /** 新しいだんかい（stage + 1） */
   newLevel: number
   /** 進化した場合のみ */
   evolvedFrom: string | null
@@ -29,62 +31,72 @@ export interface ExpGrantEvents {
   speciesId: string
 }
 
-export function expToNext(level: number): number {
-  return GAME_CONFIG.levels.expToNext(level)
+/** つぎの進化までに必要なEXP（レベル=進化段階。2026-08-08 第7回で刷新） */
+export function expToNext(stage: number): number {
+  const arr = GAME_CONFIG.levels.stageExp
+  return arr[Math.min(Math.max(stage, 0), arr.length - 1)]
 }
 
-export function evolveLevelsOf(speciesId: string): number[] {
-  const sp = getSpecies(speciesId)
-  return sp?.evolveLevels ?? [...GAME_CONFIG.levels.defaultEvolveLevels]
+export interface EvolutionInfo {
+  /** つぎの進化まであと何EXPか（最終段階ならnull） */
+  expLeft: number | null
+  /** スターに換算してあと何個か（最終段階ならnull） */
+  starsLeft: number | null
+  /** 「もうすぐ何かが起こりそう…」表示 */
+  tease: boolean
+  /** 最終段階まで進化しきったか */
+  maxed: boolean
 }
 
-/** 次の進化レベル（無ければnull）と「もうすぐ…」表示フラグ */
-export function evolutionInfo(owned: OwnedCharacterRecord): { nextEvolveLevel: number | null; tease: boolean } {
+/** つぎの進化までの残り（スター換算つき。仕様 §49 + 2026-08-08 第7回） */
+export function evolutionInfo(owned: OwnedCharacterRecord): EvolutionInfo {
   const sp = getSpecies(owned.speciesId)
-  if (!sp) return { nextEvolveLevel: null, tease: false }
-  const levels = evolveLevelsOf(owned.speciesId)
-  if (owned.stage >= sp.stages.length - 1) return { nextEvolveLevel: null, tease: false }
-  const next = levels[owned.stage]
-  if (next == null) return { nextEvolveLevel: null, tease: false }
-  return { nextEvolveLevel: next, tease: owned.level >= next - GAME_CONFIG.levels.evolveTeaseWithin }
+  if (!sp) return { expLeft: null, starsLeft: null, tease: false, maxed: false }
+  if (owned.stage >= sp.stages.length - 1) return { expLeft: null, starsLeft: null, tease: false, maxed: true }
+  const need = expToNext(owned.stage)
+  const left = Math.max(0, need - owned.exp)
+  return {
+    expLeft: left,
+    starsLeft: Math.max(1, Math.ceil(left / GAME_CONFIG.star.exp)),
+    tease: owned.exp / need >= GAME_CONFIG.levels.evolveTeaseAt,
+    maxed: false,
+  }
 }
 
 export async function grantExpToOwned(profile: Profile, owned: OwnedCharacterRecord, amount: number): Promise<ExpGrantEvents> {
   const species = getSpecies(owned.speciesId)
   if (!species) throw new Error(`unknown species: ${owned.speciesId}`)
-  const evolveLevels = evolveLevelsOf(owned.speciesId)
+  const maxStage = species.stages.length - 1
 
+  const oldStage = owned.stage
+  const oldStageName = species.stages[oldStage]?.name ?? '?'
   let exp = owned.exp + amount
-  let level = owned.level
-  let levels = 0
-  while (exp >= expToNext(level)) {
-    exp -= expToNext(level)
-    level++
-    levels++
-  }
-
-  const oldStageName = species.stages[owned.stage]?.name ?? '?'
   let stage = owned.stage
-  while (stage < species.stages.length - 1 && evolveLevels[stage] != null && level >= evolveLevels[stage]) {
+  while (stage < maxStage && exp >= expToNext(stage)) {
+    exp -= expToNext(stage)
     stage++
   }
-  const stageChanged = stage !== owned.stage
+  // 最終段階ではEXPをためない（あふれは切り捨ててバー表示を満タンに）
+  if (stage >= maxStage) exp = Math.min(exp, expToNext(maxStage))
 
+  const stageChanged = stage !== oldStage
   owned.exp = exp
-  owned.level = level
   owned.stage = stage
+  owned.level = stage + 1
   await saveOwned(owned)
 
   let evolvedTo: string | null = null
   if (stageChanged) {
     evolvedTo = species.stages[stage].name
-    await discoverDex(profile.id, owned.speciesId, stage)
+    for (let s = oldStage + 1; s <= stage; s++) {
+      await discoverDex(profile.id, owned.speciesId, s)
+    }
     await addActivity(profile.id, profile.name, 'evolve', `${profile.name}の ${oldStageName}が ${evolvedTo}に しんかした！`)
   }
 
   return {
-    levelsGained: levels,
-    newLevel: level,
+    levelsGained: stage - oldStage,
+    newLevel: stage + 1,
     evolvedFrom: stageChanged ? oldStageName : null,
     evolvedTo,
     newStage: stageChanged ? stage : null,

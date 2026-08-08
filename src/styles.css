@@ -3107,3 +3107,28 @@ body {
 .diary-helper-card .lookup-item {
   border-bottom: 1px dashed var(--line);
 }
+
+/* なかまカードの説明・進化情報（2026-08-08 第7回） */
+.friend-desc {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 2px 0 4px;
+  line-height: 1.5;
+}
+
+.friend-next {
+  font-size: 13px;
+  color: #4a5468;
+  margin: 4px 0 2px;
+}
+
+.friend-next b {
+  color: var(--accent-dark);
+}
+
+.friend-maxed {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-dark);
+  margin: 4px 0 2px;
+}

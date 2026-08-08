@@ -93,7 +93,8 @@ export const DEFAULT_JUDGE_CONFIG: JudgeConfig = {
     startRadius: 0.42,
   },
   scoring: {
-    autoJudgeDelayMs: 700,
+    // 2026-08-08 第7回: 書き終わりから○が出るまでを短く（旧700）
+    autoJudgeDelayMs: 450,
   },
   samples: {
     keepMax: 400,

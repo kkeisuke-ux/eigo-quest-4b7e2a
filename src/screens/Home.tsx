@@ -89,7 +89,7 @@ export function Home() {
               ? { text: `わからなかった ことばを ふくしゅうしよう（${unknown.length}語）`, route: { name: 'review', mode: 'unknown' } as const }
               : { text: 'ぜんぶ クリア！ すごい！ えいご絵日記も かいてみよう', route: { name: 'diary' } as const }
   const buddySpecies = buddy ? getSpecies(buddy.speciesId) : null
-  const tease = buddy ? evolutionInfo(buddy).tease : false
+  const buddyInfo = buddy ? evolutionInfo(buddy) : null
 
   return (
     <div className="screen home-screen">
@@ -177,9 +177,19 @@ export function Home() {
               <>
                 <CharacterSprite speciesId={buddy.speciesId} stage={buddy.stage} size={140} />
                 <p className="buddy-name">{buddySpecies.stages[buddy.stage].name}</p>
-                <p className="buddy-level">Lv.{buddy.level}</p>
-                <ExpBar level={buddy.level} exp={buddy.exp} />
-                {tease && <p className="buddy-tease">もうすぐ なにかが おこりそう……</p>}
+                <p className="buddy-level">
+                  だんかい {buddy.stage + 1} / {buddySpecies.stages.length}
+                </p>
+                {buddyInfo && !buddyInfo.maxed && (
+                  <>
+                    <ExpBar stage={buddy.stage} exp={buddy.exp} />
+                    <p className="tile-sub">
+                      しんかまで スター あと<b>{buddyInfo.starsLeft}こ</b>
+                    </p>
+                  </>
+                )}
+                {buddyInfo?.maxed && <p className="friend-maxed">🌟 さいごまで しんかした！</p>}
+                {buddyInfo?.tease && <p className="buddy-tease">もうすぐ なにかが おこりそう……</p>}
                 <p className="tile-sub">いっしょに べんきょうちゅう</p>
               </>
             ) : (
