@@ -1,0 +1,90 @@
+// ============================================================
+// ゲーム（報酬システム）の設定。数値はすべてここで調整する（仕様 §40, §45）。
+// ============================================================
+
+export const GAME_CONFIG = {
+  coins: {
+    /** アルファベット1文字のなぞり練習完了 */
+    alphabetTrace: 1,
+    /** アルファベットテスト1文字正解 */
+    alphabetTestPerCorrect: 2,
+    /** 単語なぞり1回（STEP1/2） */
+    wordTrace: 1,
+    /** 単語を見ながら書けた（STEP3） */
+    wordCopy: 2,
+    /** 日本語だけで書けた（STEP4） */
+    wordRecall: 3,
+    /** 5問テスト1問正解 */
+    stageTestPerCorrect: 3,
+    /** まとめテスト1問正解 */
+    termTestPerCorrect: 2,
+    /** 復習1問正解 */
+    reviewPerCorrect: 3,
+    /** ステージ（5語）学習完了ボーナス */
+    stageClearBonus: 10,
+    /** 5問テスト完走ボーナス（点数に関係なく。仕様 §23） */
+    stageTestFinishBonus: 5,
+    /** 5問テストで全問正解ボーナス（仕様 §24） */
+    stageTestPerfectBonus: 20,
+    /** まとめテスト完走ボーナス */
+    termTestFinishBonus: 30,
+    /** まとめテストで100点ボーナス */
+    termTestPerfectBonus: 80,
+    /** えいご絵日記を1ページ保存 */
+    diarySave: 15,
+    /** 連続学習ボーナス（2日目以降、1日1回） */
+    streakBonus: 10,
+    /** はじめてのプレゼント（プロフィール作成時） */
+    initialGift: 60,
+  },
+  exp: {
+    /** アルファベット練習1文字で仲間に入るEXP */
+    alphabet: 2,
+    /** 単語1回書けたときのEXP */
+    write: 4,
+    /** テスト正解のEXP */
+    testCorrect: 6,
+    /** 絵日記1ページのEXP */
+    diary: 10,
+  },
+  star: {
+    /** スター1個の値段（コイン） */
+    cost: 20,
+    /** スター1個で仲間に入るEXP */
+    exp: 100,
+  },
+  gacha: {
+    /** ガチャ1回の値段 */
+    gachaCost: 30,
+    /** 仲間に出会える確率（0-1）。必ず出るとは限らない（仕様 §45） */
+    encounterRate: 0.72,
+    /** この回数連続ではずれたら次は必ず出会える（0で無効） */
+    pityStreak: 3,
+    /** 最初の1回は必ず出会える */
+    firstGachaGuaranteed: true,
+    /** レア度ごとの出現率（合計1.0） */
+    rarityRates: { common: 0.7, rare: 0.25, epic: 0.05 } as Record<string, number>,
+    /** すでにいる仲間が出たとき、その仲間に入る「なかよしEXP」（仕様 §47） */
+    duplicateFriendExp: 60,
+  },
+  levels: {
+    /** 次のレベルまでに必要なEXP */
+    expToNext: (level: number): number => 20 + level * 12,
+    /** 進化するレベル（種族側で上書き可能）。[1段階目→2段階目, 2段階目→3段階目] */
+    defaultEvolveLevels: [10, 22],
+    /** 進化予告（「もうすぐ何かが起こりそう…」）を出す残りレベル数（仕様 §49） */
+    evolveTeaseWithin: 2,
+  },
+  review: {
+    /** 間隔反復の間隔（日）。正解するたび次の段階へ */
+    intervalsDays: [0, 1, 3, 7, 14, 30],
+    /** 「今日の復習」に出す最大数 */
+    dailyMax: 20,
+  },
+  /** 覚えた単語数のお知らせマイルストーン（みんな画面。仕様 §54） */
+  milestones: [10, 25, 50, 100, 150, 200, 300, 500],
+  /** 期の表示名（データ設定だけで変更可能） */
+  termLabels: ['1学期', '2学期', '3学期'],
+} as const
+
+export type GameConfig = typeof GAME_CONFIG

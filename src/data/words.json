@@ -1,0 +1,200 @@
+{
+  "words": [
+    { "id": "dog", "en": "dog", "ja": "いぬ", "category": "animal", "pos": "noun", "emoji": "🐶" },
+    { "id": "cat", "en": "cat", "ja": "ねこ", "category": "animal", "pos": "noun", "emoji": "🐱" },
+    { "id": "rabbit", "en": "rabbit", "ja": "うさぎ", "category": "animal", "pos": "noun", "emoji": "🐰" },
+    { "id": "bear", "en": "bear", "ja": "くま", "category": "animal", "pos": "noun", "emoji": "🐻" },
+    { "id": "panda", "en": "panda", "ja": "パンダ", "category": "animal", "pos": "noun", "emoji": "🐼" },
+    { "id": "apple", "en": "apple", "ja": "りんご", "category": "food", "pos": "noun", "emoji": "🍎" },
+    { "id": "banana", "en": "banana", "ja": "バナナ", "category": "food", "pos": "noun", "emoji": "🍌" },
+    { "id": "egg", "en": "egg", "ja": "たまご", "category": "food", "pos": "noun", "emoji": "🥚" },
+    { "id": "bread", "en": "bread", "ja": "パン", "category": "food", "pos": "noun", "emoji": "🍞" },
+    { "id": "rice", "en": "rice", "ja": "ごはん", "category": "food", "pos": "noun", "emoji": "🍚" },
+    { "id": "red", "en": "red", "ja": "あか", "category": "color", "pos": "adj", "emoji": "🟥" },
+    { "id": "blue", "en": "blue", "ja": "あお", "category": "color", "pos": "adj", "emoji": "🟦" },
+    { "id": "yellow", "en": "yellow", "ja": "きいろ", "category": "color", "pos": "adj", "emoji": "🟨" },
+    { "id": "green", "en": "green", "ja": "みどり", "category": "color", "pos": "adj", "emoji": "🟩" },
+    { "id": "pink", "en": "pink", "ja": "ピンク", "category": "color", "pos": "adj", "emoji": "🩷" },
+    { "id": "one", "en": "one", "ja": "1（いち）", "category": "number", "pos": "noun", "emoji": "1️⃣" },
+    { "id": "two", "en": "two", "ja": "2（に）", "category": "number", "pos": "noun", "emoji": "2️⃣" },
+    { "id": "three", "en": "three", "ja": "3（さん）", "category": "number", "pos": "noun", "emoji": "3️⃣" },
+    { "id": "four", "en": "four", "ja": "4（よん）", "category": "number", "pos": "noun", "emoji": "4️⃣" },
+    { "id": "five", "en": "five", "ja": "5（ご）", "category": "number", "pos": "noun", "emoji": "5️⃣" },
+    { "id": "six", "en": "six", "ja": "6（ろく）", "category": "number", "pos": "noun", "emoji": "6️⃣" },
+    { "id": "seven", "en": "seven", "ja": "7（なな）", "category": "number", "pos": "noun", "emoji": "7️⃣" },
+    { "id": "eight", "en": "eight", "ja": "8（はち）", "category": "number", "pos": "noun", "emoji": "8️⃣" },
+    { "id": "nine", "en": "nine", "ja": "9（きゅう）", "category": "number", "pos": "noun", "emoji": "9️⃣" },
+    { "id": "ten", "en": "ten", "ja": "10（じゅう）", "category": "number", "pos": "noun", "emoji": "🔟" },
+    { "id": "bird", "en": "bird", "ja": "とり", "category": "animal", "pos": "noun", "emoji": "🐦" },
+    { "id": "fish", "en": "fish", "ja": "さかな", "category": "animal", "pos": "noun", "emoji": "🐟" },
+    { "id": "lion", "en": "lion", "ja": "ライオン", "category": "animal", "pos": "noun", "emoji": "🦁" },
+    { "id": "horse", "en": "horse", "ja": "うま", "category": "animal", "pos": "noun", "emoji": "🐴" },
+    { "id": "pig", "en": "pig", "ja": "ぶた", "category": "animal", "pos": "noun", "emoji": "🐷" },
+    { "id": "milk", "en": "milk", "ja": "ぎゅうにゅう", "category": "drink", "pos": "noun", "emoji": "🥛" },
+    { "id": "water", "en": "water", "ja": "みず", "category": "drink", "pos": "noun", "emoji": "💧" },
+    { "id": "juice", "en": "juice", "ja": "ジュース", "category": "drink", "pos": "noun", "emoji": "🧃" },
+    { "id": "tea", "en": "tea", "ja": "おちゃ", "category": "drink", "pos": "noun", "emoji": "🍵" },
+    { "id": "soda", "en": "soda", "ja": "ソーダ", "category": "drink", "pos": "noun", "emoji": "🥤" },
+    { "id": "eye", "en": "eye", "ja": "め", "category": "body", "pos": "noun", "emoji": "👁️" },
+    { "id": "ear", "en": "ear", "ja": "みみ", "category": "body", "pos": "noun", "emoji": "👂" },
+    { "id": "nose", "en": "nose", "ja": "はな", "category": "body", "pos": "noun", "emoji": "👃" },
+    { "id": "mouth", "en": "mouth", "ja": "くち", "category": "body", "pos": "noun", "emoji": "👄" },
+    { "id": "hand", "en": "hand", "ja": "て", "category": "body", "pos": "noun", "emoji": "✋" },
+    { "id": "house", "en": "house", "ja": "いえ", "category": "home", "pos": "noun", "emoji": "🏠" },
+    { "id": "door", "en": "door", "ja": "ドア", "category": "home", "pos": "noun", "emoji": "🚪" },
+    { "id": "bed", "en": "bed", "ja": "ベッド", "category": "home", "pos": "noun", "emoji": "🛏️" },
+    { "id": "chair", "en": "chair", "ja": "いす", "category": "home", "pos": "noun", "emoji": "🪑" },
+    { "id": "table", "en": "table", "ja": "テーブル", "category": "home", "pos": "noun", "emoji": "🍽️" },
+    { "id": "sun", "en": "sun", "ja": "たいよう", "category": "nature", "pos": "noun", "emoji": "☀️" },
+    { "id": "moon", "en": "moon", "ja": "つき", "category": "nature", "pos": "noun", "emoji": "🌙" },
+    { "id": "star", "en": "star", "ja": "ほし", "category": "nature", "pos": "noun", "emoji": "⭐" },
+    { "id": "tree", "en": "tree", "ja": "き", "category": "nature", "pos": "noun", "emoji": "🌳" },
+    { "id": "flower", "en": "flower", "ja": "はな（お花）", "category": "nature", "pos": "noun", "emoji": "🌸" },
+    { "id": "black", "en": "black", "ja": "くろ", "category": "color", "pos": "adj", "emoji": "⬛" },
+    { "id": "white", "en": "white", "ja": "しろ", "category": "color", "pos": "adj", "emoji": "⬜" },
+    { "id": "orange", "en": "orange", "ja": "オレンジ", "category": "color", "pos": "adj", "emoji": "🟧" },
+    { "id": "purple", "en": "purple", "ja": "むらさき", "category": "color", "pos": "adj", "emoji": "🟪" },
+    { "id": "brown", "en": "brown", "ja": "ちゃいろ", "category": "color", "pos": "adj", "emoji": "🟫" },
+    { "id": "grape", "en": "grape", "ja": "ぶどう", "category": "food", "pos": "noun", "emoji": "🍇" },
+    { "id": "peach", "en": "peach", "ja": "もも", "category": "food", "pos": "noun", "emoji": "🍑" },
+    { "id": "melon", "en": "melon", "ja": "メロン", "category": "food", "pos": "noun", "emoji": "🍈" },
+    { "id": "lemon", "en": "lemon", "ja": "レモン", "category": "food", "pos": "noun", "emoji": "🍋" },
+    { "id": "cherry", "en": "cherry", "ja": "さくらんぼ", "category": "food", "pos": "noun", "emoji": "🍒" },
+    { "id": "i", "en": "I", "ja": "わたし", "category": "me", "pos": "other", "emoji": "🙋" },
+    { "id": "you", "en": "you", "ja": "あなた", "category": "me", "pos": "other", "emoji": "👉" },
+    { "id": "mother", "en": "mother", "ja": "おかあさん", "category": "family", "pos": "noun", "emoji": "👩" },
+    { "id": "father", "en": "father", "ja": "おとうさん", "category": "family", "pos": "noun", "emoji": "👨" },
+    { "id": "family", "en": "family", "ja": "かぞく", "category": "family", "pos": "noun", "emoji": "👨‍👩‍👧‍👦" },
+    { "id": "school", "en": "school", "ja": "がっこう", "category": "school", "pos": "noun", "emoji": "🏫" },
+    { "id": "teacher", "en": "teacher", "ja": "せんせい", "category": "school", "pos": "noun", "emoji": "🧑‍🏫" },
+    { "id": "friend", "en": "friend", "ja": "ともだち", "category": "school", "pos": "noun", "emoji": "🧑‍🤝‍🧑" },
+    { "id": "book", "en": "book", "ja": "ほん", "category": "school", "pos": "noun", "emoji": "📖" },
+    { "id": "pen", "en": "pen", "ja": "ペン", "category": "school", "pos": "noun", "emoji": "🖊️" },
+    { "id": "run", "en": "run", "ja": "はしる", "category": "action", "pos": "verb", "emoji": "🏃" },
+    { "id": "jump", "en": "jump", "ja": "とぶ（ジャンプ）", "category": "action", "pos": "verb", "emoji": "🤸" },
+    { "id": "walk", "en": "walk", "ja": "あるく", "category": "action", "pos": "verb", "emoji": "🚶" },
+    { "id": "eat", "en": "eat", "ja": "たべる", "category": "action", "pos": "verb", "emoji": "🍔😋" },
+    { "id": "drink", "en": "drink", "ja": "のむ", "category": "action", "pos": "verb", "emoji": "🥤😊" },
+    { "id": "happy", "en": "happy", "ja": "うれしい", "category": "feeling", "pos": "adj", "emoji": "😄" },
+    { "id": "sad", "en": "sad", "ja": "かなしい", "category": "feeling", "pos": "adj", "emoji": "😢" },
+    { "id": "fine", "en": "fine", "ja": "げんき", "category": "feeling", "pos": "adj", "emoji": "💪😊" },
+    { "id": "hungry", "en": "hungry", "ja": "おなかがすいた", "category": "feeling", "pos": "adj", "emoji": "🍽️😣" },
+    { "id": "sleepy", "en": "sleepy", "ja": "ねむい", "category": "feeling", "pos": "adj", "emoji": "😪" },
+    { "id": "sunny", "en": "sunny", "ja": "はれ", "category": "weather", "pos": "adj", "emoji": "☀️" },
+    { "id": "rainy", "en": "rainy", "ja": "あめ（の日）", "category": "weather", "pos": "adj", "emoji": "🌧️" },
+    { "id": "cloudy", "en": "cloudy", "ja": "くもり", "category": "weather", "pos": "adj", "emoji": "☁️" },
+    { "id": "snowy", "en": "snowy", "ja": "ゆき（の日）", "category": "weather", "pos": "adj", "emoji": "☃️" },
+    { "id": "hot", "en": "hot", "ja": "あつい", "category": "weather", "pos": "adj", "emoji": "🥵" },
+    { "id": "soccer", "en": "soccer", "ja": "サッカー", "category": "sport", "pos": "noun", "emoji": "⚽" },
+    { "id": "baseball", "en": "baseball", "ja": "やきゅう", "category": "sport", "pos": "noun", "emoji": "⚾" },
+    { "id": "tennis", "en": "tennis", "ja": "テニス", "category": "sport", "pos": "noun", "emoji": "🎾" },
+    { "id": "swimming", "en": "swimming", "ja": "すいえい", "category": "sport", "pos": "noun", "emoji": "🏊" },
+    { "id": "basketball", "en": "basketball", "ja": "バスケットボール", "category": "sport", "pos": "noun", "emoji": "🏀" },
+    { "id": "bag", "en": "bag", "ja": "かばん", "category": "item", "pos": "noun", "emoji": "🎒" },
+    { "id": "cap", "en": "cap", "ja": "ぼうし", "category": "item", "pos": "noun", "emoji": "🧢" },
+    { "id": "notebook", "en": "notebook", "ja": "ノート", "category": "item", "pos": "noun", "emoji": "📓" },
+    { "id": "box", "en": "box", "ja": "はこ", "category": "item", "pos": "noun", "emoji": "📦" },
+    { "id": "umbrella", "en": "umbrella", "ja": "かさ", "category": "item", "pos": "noun", "emoji": "☂️" },
+    { "id": "see", "en": "see", "ja": "みる", "category": "action", "pos": "verb", "emoji": "👀" },
+    { "id": "go", "en": "go", "ja": "いく", "category": "action", "pos": "verb", "emoji": "➡️🚶" },
+    { "id": "come", "en": "come", "ja": "くる", "category": "action", "pos": "verb", "emoji": "👋🚶" },
+    { "id": "like", "en": "like", "ja": "すき", "category": "action", "pos": "verb", "emoji": "❤️" },
+    { "id": "play", "en": "play", "ja": "あそぶ", "category": "action", "pos": "verb", "emoji": "🪁😄" },
+    { "id": "park", "en": "park", "ja": "こうえん", "category": "place", "pos": "noun", "emoji": "🛝" },
+    { "id": "zoo", "en": "zoo", "ja": "どうぶつえん", "category": "place", "pos": "noun", "emoji": "🦁🐘" },
+    { "id": "station", "en": "station", "ja": "えき", "category": "place", "pos": "noun", "emoji": "🚉" },
+    { "id": "shop", "en": "shop", "ja": "みせ", "category": "place", "pos": "noun", "emoji": "🏪" },
+    { "id": "library", "en": "library", "ja": "としょかん", "category": "place", "pos": "noun", "emoji": "🏛️📚" },
+    { "id": "bus", "en": "bus", "ja": "バス", "category": "vehicle", "pos": "noun", "emoji": "🚌" },
+    { "id": "car", "en": "car", "ja": "くるま", "category": "vehicle", "pos": "noun", "emoji": "🚗" },
+    { "id": "train", "en": "train", "ja": "でんしゃ", "category": "vehicle", "pos": "noun", "emoji": "🚃" },
+    { "id": "bike", "en": "bike", "ja": "じてんしゃ", "category": "vehicle", "pos": "noun", "emoji": "🚲" },
+    { "id": "plane", "en": "plane", "ja": "ひこうき", "category": "vehicle", "pos": "noun", "emoji": "✈️" },
+    { "id": "sunday", "en": "Sunday", "ja": "にちようび", "category": "day", "pos": "noun", "emoji": "🌞📅" },
+    { "id": "monday", "en": "Monday", "ja": "げつようび", "category": "day", "pos": "noun", "emoji": "🌙📅" },
+    { "id": "tuesday", "en": "Tuesday", "ja": "かようび", "category": "day", "pos": "noun", "emoji": "🔥📅" },
+    { "id": "wednesday", "en": "Wednesday", "ja": "すいようび", "category": "day", "pos": "noun", "emoji": "💧📅" },
+    { "id": "thursday", "en": "Thursday", "ja": "もくようび", "category": "day", "pos": "noun", "emoji": "🌳📅" },
+    { "id": "friday", "en": "Friday", "ja": "きんようび", "category": "day", "pos": "noun", "emoji": "🪙📅" },
+    { "id": "saturday", "en": "Saturday", "ja": "どようび", "category": "day", "pos": "noun", "emoji": "🪨📅" },
+    { "id": "morning", "en": "morning", "ja": "あさ", "category": "time", "pos": "noun", "emoji": "🌅" },
+    { "id": "today", "en": "today", "ja": "きょう", "category": "time", "pos": "noun", "emoji": "📍🗓️" },
+    { "id": "tomorrow", "en": "tomorrow", "ja": "あした", "category": "time", "pos": "noun", "emoji": "➡️🗓️" }
+  ],
+  "levels": [
+    {
+      "id": "pre",
+      "label": "ようじ",
+      "terms": [
+        {
+          "index": 0,
+          "stages": [
+            { "id": "pre-1-1", "label": "どうぶつ 1", "words": ["dog", "cat", "rabbit", "bear", "panda"] },
+            { "id": "pre-1-2", "label": "たべもの 1", "words": ["apple", "banana", "egg", "bread", "rice"] },
+            { "id": "pre-1-3", "label": "いろ 1", "words": ["red", "blue", "yellow", "green", "pink"] },
+            { "id": "pre-1-4", "label": "かず 1", "words": ["one", "two", "three", "four", "five"] }
+          ]
+        },
+        {
+          "index": 1,
+          "stages": [
+            { "id": "pre-2-1", "label": "かず 2", "words": ["six", "seven", "eight", "nine", "ten"] },
+            { "id": "pre-2-2", "label": "どうぶつ 2", "words": ["bird", "fish", "lion", "horse", "pig"] },
+            { "id": "pre-2-3", "label": "のみもの", "words": ["milk", "water", "juice", "tea", "soda"] },
+            { "id": "pre-2-4", "label": "からだ", "words": ["eye", "ear", "nose", "mouth", "hand"] }
+          ]
+        },
+        {
+          "index": 2,
+          "stages": [
+            { "id": "pre-3-1", "label": "いえ", "words": ["house", "door", "bed", "chair", "table"] },
+            { "id": "pre-3-2", "label": "しぜん", "words": ["sun", "moon", "star", "tree", "flower"] },
+            { "id": "pre-3-3", "label": "いろ 2", "words": ["black", "white", "orange", "purple", "brown"] },
+            { "id": "pre-3-4", "label": "くだもの", "words": ["grape", "peach", "melon", "lemon", "cherry"] }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "e1",
+      "label": "小1相当",
+      "terms": [
+        {
+          "index": 0,
+          "stages": [
+            { "id": "e1-1-1", "label": "じぶんとかぞく", "words": ["i", "you", "mother", "father", "family"] },
+            { "id": "e1-1-2", "label": "がっこう", "words": ["school", "teacher", "friend", "book", "pen"] },
+            { "id": "e1-1-3", "label": "うごきのことば 1", "words": ["run", "jump", "walk", "eat", "drink"] },
+            { "id": "e1-1-4", "label": "きもち", "words": ["happy", "sad", "fine", "hungry", "sleepy"] }
+          ]
+        },
+        {
+          "index": 1,
+          "stages": [
+            { "id": "e1-2-1", "label": "てんき", "words": ["sunny", "rainy", "cloudy", "snowy", "hot"] },
+            { "id": "e1-2-2", "label": "スポーツ", "words": ["soccer", "baseball", "tennis", "swimming", "basketball"] },
+            { "id": "e1-2-3", "label": "もちもの", "words": ["bag", "cap", "notebook", "box", "umbrella"] },
+            { "id": "e1-2-4", "label": "うごきのことば 2", "words": ["see", "go", "come", "like", "play"] }
+          ]
+        },
+        {
+          "index": 2,
+          "stages": [
+            { "id": "e1-3-1", "label": "ばしょ", "words": ["park", "zoo", "station", "shop", "library"] },
+            { "id": "e1-3-2", "label": "のりもの", "words": ["bus", "car", "train", "bike", "plane"] },
+            { "id": "e1-3-3", "label": "ようび 1", "words": ["sunday", "monday", "tuesday", "wednesday", "thursday"] },
+            { "id": "e1-3-4", "label": "ようびととき", "words": ["friday", "saturday", "morning", "today", "tomorrow"] }
+          ]
+        }
+      ]
+    },
+    { "id": "e2", "label": "小2相当", "terms": [] },
+    { "id": "e3", "label": "小3相当", "terms": [] },
+    { "id": "e4", "label": "小4相当", "terms": [] },
+    { "id": "e5", "label": "小5相当", "terms": [] },
+    { "id": "e6", "label": "小6相当", "terms": [] },
+    { "id": "j1", "label": "中1相当", "terms": [] },
+    { "id": "j2", "label": "中2相当", "terms": [] },
+    { "id": "j3", "label": "中3相当", "terms": [] }
+  ]
+}
