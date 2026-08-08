@@ -1,21 +1,19 @@
-// みんな画面（仕様 §53-§54）: 兄弟姉妹の到達状況を横並びで比較（順位付けはしない）。
+// みんな画面（仕様 §53）: 兄弟姉妹の到達状況を横並びで比較（順位付けはしない）。
 // - 覚えた大文字数/26・小文字数/26・覚えた英単語数
 // - 各学年相当・各学期まとめテストの最高点
 // - 図鑑の仲間数
-// - 最近のできごと（達成のお知らせ）
 import { totalDexEntries } from '../data/species'
 import { playableLevels, termId, termLabel } from '../data/words'
 import { useAsyncData } from '../state/hooks'
 import { useAppState } from '../state/store'
 import {
   alphabetMasteryCounts,
-  listActivity,
   listDex,
   listProfiles,
   listTestResults,
   listWordProgress,
 } from '../storage/repo'
-import { Card, LoadingView, SectionTitle, TopBar } from '../ui/components'
+import { Card, LoadingView, TopBar } from '../ui/components'
 
 interface ProfileDash {
   id: string
@@ -72,8 +70,7 @@ export function Minna() {
         }
       })
     )
-    const activity = await listActivity(30)
-    return { dash, activity, dexTotal: totalDexEntries() }
+    return { dash, dexTotal: totalDexEntries() }
   }, [profileId])
 
   if (!data) return <LoadingView />
@@ -124,23 +121,6 @@ export function Minna() {
             </Card>
           ))}
         </div>
-        <SectionTitle>さいきんの できごと</SectionTitle>
-        <Card>
-          {data.activity.length === 0 ? (
-            <p className="tile-sub">まだ できごとが ないよ</p>
-          ) : (
-            <ul className="activity-list">
-              {data.activity.map((a) => (
-                <li key={a.id} className="activity-item">
-                  <span className="activity-msg">{a.message}</span>
-                  <span className="activity-date">
-                    {new Date(a.at).getMonth() + 1}/{new Date(a.at).getDate()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
       </div>
     </div>
   )
