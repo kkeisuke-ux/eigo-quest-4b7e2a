@@ -32,6 +32,12 @@ export interface ToastItem {
   text: string
 }
 
+/** コイン獲得の演出（右上バッジへ「+N」が飛ぶ。仕様フィードバック 2026-08-08） */
+export interface CoinFxItem {
+  id: number
+  amount: number
+}
+
 export interface PendingEvolution {
   speciesId: string
   fromStage: number
@@ -48,6 +54,7 @@ export interface AppState {
   /** 音設定変更の通知カウンタ（SoundButtonの再描画用） */
   soundVersion: number
   toasts: ToastItem[]
+  coinFx: CoinFxItem[]
   pendingEvolution: PendingEvolution | null
 }
 
@@ -57,6 +64,7 @@ let state: AppState = {
   dataVersion: 0,
   soundVersion: 0,
   toasts: [],
+  coinFx: [],
   pendingEvolution: null,
 }
 
@@ -115,4 +123,16 @@ export function showToast(text: string) {
 
 export function setPendingEvolution(p: PendingEvolution | null) {
   setState({ pendingEvolution: p })
+}
+
+let coinFxSeq = 0
+
+/** コイン獲得の視覚演出を出す（右上に「+N」がポップして消える） */
+export function showCoinFx(amount: number) {
+  if (amount <= 0) return
+  const id = ++coinFxSeq
+  setState({ coinFx: [...state.coinFx, { id, amount }] })
+  setTimeout(() => {
+    setState({ coinFx: getState().coinFx.filter((c) => c.id !== id) })
+  }, 1900)
 }

@@ -303,8 +303,8 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
       const newItems = [...itemsRef.current, item]
       setItemsBoth(newItems)
       await applyWordOutcome(profile.id, wordId, result, { context: kind === 'review' ? 'review' : 'test' })
-      // 「わからない」または不正解のまま進んだ単語は復習リストへ（仕様 §22）
-      await addUnknownWord(profile.id, wordId, result === 'unknown' ? 'unknown' : 'wrong')
+      // 答えを見た・不正解のまま進んだ単語は「わからなかった単語」へ（どのテストかも記録。仕様 §22）
+      await addUnknownWord(profile.id, wordId, result === 'unknown' ? 'unknown' : 'wrong', kind)
       await persistSession(ids, index + 1, newItems)
       bumpData()
       setWrong(null)
@@ -530,7 +530,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
             overlay={mark ? <JudgeMark kind={mark} /> : null}
             extraFooter={
               <Button variant="secondary" size="sm" onClick={() => void markWrongOrUnknown('unknown')} disabled={mark != null}>
-                わからない
+                こたえを 見る
               </Button>
             }
           />

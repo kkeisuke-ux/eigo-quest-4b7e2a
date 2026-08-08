@@ -1,5 +1,6 @@
 // データアクセス層。画面からはこのモジュール経由で読み書きする。
 import { GAME_CONFIG } from '../config/gameConfig'
+import { showCoinFx } from '../state/store'
 import {
   dbAdd,
   dbClear,
@@ -251,15 +252,22 @@ export async function masteredWordCount(profileId: string): Promise<number> {
 }
 
 // ---------------- Unknown list（わからなかった単語。仕様 §22） ----------------
-export async function addUnknownWord(profileId: string, wordId: string, reason: 'unknown' | 'wrong'): Promise<void> {
+export async function addUnknownWord(
+  profileId: string,
+  wordId: string,
+  reason: 'unknown' | 'wrong',
+  source?: 'stage' | 'term' | 'review'
+): Promise<void> {
   const existing = await dbGet<UnknownWordRecord>('unknownWords', [profileId, wordId])
   const now = Date.now()
   if (existing) {
     existing.lastFailedAt = now
     existing.reason = reason
+    // どのテストでわからなかったかは、5問テスト/まとめテストの情報を優先して残す
+    if (source && (source !== 'review' || existing.source == null)) existing.source = source
     await dbPut('unknownWords', existing)
   } else {
-    await dbPut('unknownWords', { profileId, wordId, addedAt: now, reason, lastFailedAt: now } satisfies UnknownWordRecord)
+    await dbPut('unknownWords', { profileId, wordId, addedAt: now, reason, source, lastFailedAt: now } satisfies UnknownWordRecord)
   }
 }
 
@@ -289,6 +297,8 @@ export async function addCoins(profileId: string, delta: number, reason: string)
     balanceAfter: profile.coins,
     at: Date.now(),
   } satisfies Omit<CoinHistoryRecord, 'id'>)
+  // 獲得したことがひと目で分かる視覚演出（右上に +N）
+  if (delta > 0) showCoinFx(delta)
   return profile
 }
 

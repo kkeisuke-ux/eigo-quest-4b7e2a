@@ -139,12 +139,14 @@ export interface PracticeSessionRecord {
   updatedAt: number
 }
 
-/** わからなかった単語（仕様 §21-22） */
+/** わからなかった単語（仕様 §21-§22） */
 export interface UnknownWordRecord {
   profileId: string
   wordId: string
   addedAt: number
   reason: 'unknown' | 'wrong'
+  /** どのテストでわからなかったか（stage=5問テスト / term=まとめテスト / review=ふくしゅう） */
+  source?: 'stage' | 'term' | 'review'
   lastFailedAt: number
 }
 

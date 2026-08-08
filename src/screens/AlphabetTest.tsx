@@ -251,7 +251,7 @@ export function AlphabetTest({ kind }: { kind: AlphabetKind }) {
             overlay={mark ? <JudgeMark kind={mark} /> : null}
             extraFooter={
               <Button variant="secondary" size="sm" onClick={() => void giveUp()} disabled={mark != null}>
-                わからない
+                こたえを 見る
               </Button>
             }
           />

@@ -119,16 +119,19 @@ export async function speak(text: string, kind: SpeechKind): Promise<void> {
   const my = ++seq
   const p = getPronunciation()
   if (my !== seq) return
-  await p.speak(text, kind)
+  // 大文字1文字を渡すとTTSが「capital A」と読むことがあるため、
+  // 文字名の発音は小文字で渡す（"a" → 「エイ」とだけ読む）
+  const spoken = kind === 'letter' ? text.toLowerCase() : text
+  await p.speak(spoken, kind)
 }
 
 export function stopSpeaking(): void {
   getPronunciation().stop()
 }
 
-/** アルファベットの文字名を発音（"a"でも"A"として読む。仕様 §7） */
+/** アルファベットの文字名を発音（大文字・小文字とも文字名だけを読む。仕様 §7） */
 export function speakLetter(letter: string): Promise<void> {
-  return speak(letter.toUpperCase(), 'letter')
+  return speak(letter, 'letter')
 }
 
 export function speakWord(word: string): Promise<void> {

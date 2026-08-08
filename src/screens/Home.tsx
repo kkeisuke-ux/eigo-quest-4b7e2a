@@ -7,7 +7,6 @@ import { useAsyncData } from '../state/hooks'
 import { navigate, useAppState } from '../state/store'
 import {
   alphabetMasteryCounts,
-  dueReviewWordIds,
   getProfile,
   listOwned,
   listTestResults,
@@ -23,8 +22,7 @@ export function Home() {
     if (!profileId) return null
     const profile = await getProfile(profileId)
     if (!profile) return null
-    const [due, unknown, progressList, owned, results, alpha] = await Promise.all([
-      dueReviewWordIds(profileId),
+    const [unknown, progressList, owned, results, alpha] = await Promise.all([
       listUnknownWords(profileId),
       listWordProgress(profileId),
       listOwned(profileId),
@@ -62,7 +60,6 @@ export function Home() {
     const alphabetDone = alpha.upper + alpha.lower >= 40
     return {
       profile,
-      due,
       unknown,
       mastered,
       buddy,
@@ -76,7 +73,7 @@ export function Home() {
   }, [profileId])
 
   if (!data) return <LoadingView />
-  const { profile, due, unknown, mastered, buddy, alpha, totalPlayable, alphabetDone, nextPractice, nextStageTest, nextTerm } = data
+  const { profile, unknown, mastered, buddy, alpha, totalPlayable, alphabetDone, nextPractice, nextStageTest, nextTerm } = data
 
   const recommend = !alphabetDone && alpha.upper < 26
     ? { text: `アルファベットの おおもじを れんしゅうしよう（いま ${alpha.upper}/26）`, route: { name: 'alphabet' } as const }
@@ -88,7 +85,9 @@ export function Home() {
           ? { text: `「${nextStageTest.label}」の ５もんテストで ぜんもんせいかいを めざそう！`, route: { name: 'stageTest', stageId: nextStageTest.id } as const }
           : nextTerm
             ? { text: `${nextTerm.title}に ちょうせん！`, route: { name: 'termTest', termId: nextTerm.id } as const }
-            : { text: 'ぜんぶ クリア！ すごい！ ふくしゅうで キープしよう', route: { name: 'review', mode: 'due' } as const }
+            : unknown.length > 0
+              ? { text: `わからなかった ことばを ふくしゅうしよう（${unknown.length}語）`, route: { name: 'review', mode: 'unknown' } as const }
+              : { text: 'ぜんぶ クリア！ すごい！ えいご絵日記も かいてみよう', route: { name: 'diary' } as const }
   const buddySpecies = buddy ? getSpecies(buddy.speciesId) : null
   const tease = buddy ? evolutionInfo(buddy).tease : false
 
@@ -141,14 +140,14 @@ export function Home() {
             </button>
           </div>
           <div className="tile-row">
-            <Card className="tile" onClick={() => due.length > 0 && navigate({ name: 'review', mode: 'due' })}>
-              <h3>きょうの ふくしゅう</h3>
-              <p className="tile-num">{due.length}語</p>
-              {due.length === 0 && <p className="tile-sub">いまは なし！</p>}
-            </Card>
             <Card className="tile" onClick={() => navigate({ name: 'unknownList' })}>
               <h3>わからなかった ことば</h3>
               <p className="tile-num">{unknown.length}語</p>
+              {unknown.length === 0 && <p className="tile-sub">いまは ゼロ！ すごい！</p>}
+            </Card>
+            <Card className="tile" onClick={() => navigate({ name: 'myWords' })}>
+              <h3>ことばを調べる・わたしの単語帳</h3>
+              <p className="tile-sub">絵日記で つかいたい ことばを さがせるよ</p>
             </Card>
           </div>
           <div className="tile-row">

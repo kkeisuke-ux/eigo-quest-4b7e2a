@@ -18,7 +18,7 @@ export function UnknownList() {
       <div className="map-scroll">
         <Card>
           <p>
-            テストで「わからない」を おしたり まちがえたりした ことばが ここに あつまるよ。
+            テストで「こたえを 見る」を おしたり まちがえたりした ことばが ここに あつまるよ。
             <b>つぎの テストで せいかいすると じどうで きえる</b>んだ。
           </p>
           <Button onClick={() => navigate({ name: 'review', mode: 'unknown' })} disabled={list.length === 0}>
@@ -34,13 +34,16 @@ export function UnknownList() {
             {list.map((u) => {
               const word = getWord(u.wordId)
               if (!word) return null
+              const sourceLabel =
+                u.source === 'stage' ? '５もんテスト' : u.source === 'term' ? 'まとめテスト' : u.source === 'review' ? 'ふくしゅう' : 'テスト'
               return (
                 <Card key={u.wordId} className="unknown-card">
+                  <span className={`unknown-source unknown-source-${u.source ?? 'other'}`}>{sourceLabel}</span>
                   <WordIllustrationView value={word.illustration.value} size="sm" />
                   <span className="unknown-word">{word.en}</span>
                   <span className="unknown-ja">{word.ja}</span>
                   <span className="unknown-reason">
-                    {u.reason === 'unknown' ? '「わからない」をおした' : 'テストで まちがえた'}
+                    {u.reason === 'unknown' ? 'こたえを 見た' : 'まちがえた'}
                   </span>
                   <Button size="sm" variant="secondary" onClick={() => navigate({ name: 'review', mode: 'unknown', wordIds: [u.wordId] })}>
                     この ことばを れんしゅう

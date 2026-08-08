@@ -4,6 +4,7 @@ import { loadJudgeOverrides } from './config/judgeRuntime'
 import { setBgmScene } from './audio/sound'
 import { navigate, useAppState, type Route } from './state/store'
 import { Toasts } from './ui/components'
+import { CoinFx } from './ui/CoinFx'
 import { EvolutionModal } from './ui/EvolutionModal'
 import { ProfileSelect } from './screens/ProfileSelect'
 import { Home } from './screens/Home'
@@ -112,6 +113,7 @@ export default function App() {
     <div className="app">
       <RouteView route={route} />
       <Toasts />
+      <CoinFx />
       <EvolutionModal />
     </div>
   )

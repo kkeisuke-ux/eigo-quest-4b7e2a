@@ -1,19 +1,21 @@
-// アルファベットの書き順なぞり練習（仕様 §6）。
-// 3つのモード:
-//   guided : 確定画は濃く、いまの画は薄く＋始点●＋方向アニメ（1回目）
-//   numbers: 全画うすいグレー＋書き順の数字（2回目）
-//   gray   : 全画うすいグレーのみ（3回目）
-// いずれも1画ずつ正しい順で書く。判定は「文字の判定」設定を反映。
-import { useEffect, useRef, useState } from 'react'
+// アルファベットのなぞり練習（仕様 §6 + 2026-08-08フィードバック反映）。
+// 書き順ガイドは「見る」ためのもので、1画ずつの正誤判定はしない。
+// 画数分書き終えたら文字全体の字形で判定し、読める形なら○（形があっていればよい）。
+// モード:
+//   guided : 書き順ガイドつき（つぎの画を薄く＋始点●＋方向アニメ）
+//   numbers: 全画うすいグレー＋書き順の数字
+//   gray   : 全画うすいグレーのみ
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
-import { InkCanvas, type InkCanvasHandle } from '../core/ink/InkCanvas'
+import { InkCanvas, strokesToPts, type InkCanvasHandle } from '../core/ink/InkCanvas'
 import type { InkStroke } from '../core/ink/types'
-import { judgeTraceStroke } from '../core/judge/evaluate'
+import { judgeExpectedLetter } from '../recognition/classify'
 import { getRefLetter, hasRefLetter } from '../core/refdata'
 import { getEffectiveJudgeConfig } from '../config/judgeRuntime'
 import { getAppFlags } from '../config/appFlags'
 import { playStrokePop, playWrong } from '../audio/sound'
 import { LetterSvg, RuleLines } from '../ui/LetterSvg'
+import { Button } from '../ui/components'
 
 export type TraceMode = 'guided' | 'numbers' | 'gray'
 
@@ -28,17 +30,28 @@ export function TraceStep({
   onDone: () => void
   overlay?: React.ReactNode
 }) {
-  const [strokeIdx, setStrokeIdx] = useState(0)
+  const [strokeCount, setStrokeCount] = useState(0)
   const [hint, setHint] = useState<string | null>(null)
   const [shake, setShake] = useState(false)
-  const inkRef = useRef<InkCanvasHandle | null>(null)
+  const inkRef = useMemo<{ current: InkCanvasHandle | null }>(() => ({ current: null }), [])
   const doneRef = useRef(false)
+  const timerRef = useRef<number | null>(null)
+
+  const cancelTimer = () => {
+    if (timerRef.current != null) {
+      window.clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }
 
   useEffect(() => {
-    setStrokeIdx(0)
+    setStrokeCount(0)
     setHint(null)
     doneRef.current = false
     inkRef.current?.clear()
+    cancelTimer()
+    return cancelTimer
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [letter, mode])
 
   const available = hasRefLetter(letter)
@@ -46,42 +59,45 @@ export function TraceStep({
 
   if (!ref) return <div className="loading-view">「{letter}」のお手本データがありません</div>
 
-  const handleStroke = (stroke: InkStroke) => {
+  const judgeNow = () => {
     if (doneRef.current) return
     const ink = inkRef.current
     if (!ink) return
-    const res = judgeTraceStroke(letter, strokeIdx, stroke.points, ink.getSize(), getEffectiveJudgeConfig())
-    if (res.ok) {
-      ink.clear()
+    const strokes = ink.getStrokes()
+    if (strokes.length === 0) return
+    cancelTimer()
+    const res = judgeExpectedLetter(strokesToPts(strokes), ink.getSize(), letter, getEffectiveJudgeConfig())
+    if (res.correct) {
+      doneRef.current = true
       setHint(null)
-      const next = strokeIdx + 1
-      if (next >= ref.strokeCount) {
-        doneRef.current = true
-        onDone()
-      } else {
-        playStrokePop()
-        setStrokeIdx(next)
-      }
+      onDone()
     } else {
       playWrong()
-      setHint(
-        res.reversed
-          ? mode === 'guided'
-            ? 'はんたいむきだよ。みどりの●から かこう'
-            : 'はんたいむきだよ。かきはじめの ばしょを かくにんしよう'
-          : res.startTooFar
-            ? mode === 'guided'
-              ? 'みどりの●の ところから かきはじめよう'
-              : `${strokeIdx + 1}かくめの かきはじめの ばしょから かこう`
-            : 'せんに そって なぞってみよう'
-      )
+      setHint('おしい！ うすい字に そって もういちど なぞってみよう')
       setShake(true)
       window.setTimeout(() => {
-        ink.clear()
+        inkRef.current?.clear()
+        setStrokeCount(0)
         setShake(false)
-      }, 420)
+      }, 500)
     }
   }
+
+  const handleInkChange = (all: InkStroke[]) => {
+    if (doneRef.current) return
+    const n = all.length
+    setStrokeCount(n)
+    cancelTimer()
+    if (n === 0) return
+    if (n < ref.strokeCount) {
+      playStrokePop()
+      return
+    }
+    // 画数分そろったら少し待って字形判定（書き順・向きは問わない）
+    timerRef.current = window.setTimeout(judgeNow, 500)
+  }
+
+  const currentStroke = Math.min(strokeCount, ref.strokeCount - 1)
 
   const guide = (
     <>
@@ -89,15 +105,15 @@ export function TraceStep({
       {mode === 'guided' ? (
         <LetterSvg
           letter={letter}
-          upTo={strokeIdx}
-          current={Math.min(strokeIdx, ref.strokeCount - 1)}
+          upTo={currentStroke}
+          current={currentStroke}
           showRest
           className="guide-svg"
         />
       ) : (
         <LetterSvg
           letter={letter}
-          upTo={strokeIdx}
+          upTo={0}
           showRest
           restColor="#ccd4e2"
           numbers={mode === 'numbers'}
@@ -112,16 +128,24 @@ export function TraceStep({
       <InkCanvas
         inkRef={inkRef}
         allowTouchInk={getAppFlags().allowTouchInk}
-        onStrokeEnd={handleStroke}
+        onInkChange={handleInkChange}
         className="pad-box"
         guide={guide}
         overlay={overlay}
       />
       <div className="trace-status">
         <span className="trace-count">
-          {Math.min(strokeIdx + 1, ref.strokeCount)}かくめ / ぜんぶで{ref.strokeCount}かく
+          {Math.min(strokeCount + 1, ref.strokeCount)}かくめ / ぜんぶで{ref.strokeCount}かく
         </span>
         {hint && <span className="trace-hint">{hint}</span>}
+        <span className="trace-actions">
+          <Button variant="ghost" size="sm" onClick={() => { inkRef.current?.clear(); setStrokeCount(0); cancelTimer() }} disabled={strokeCount === 0}>
+            かきなおす
+          </Button>
+          <Button variant="primary" size="sm" onClick={judgeNow} disabled={strokeCount === 0}>
+            できた！
+          </Button>
+        </span>
       </div>
     </div>
   )
