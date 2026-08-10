@@ -1,6 +1,6 @@
 // ホーム画面（仕様 §58）: 今日の学習・復習・大文字/小文字進捗・覚えた単語数・仲間・コイン。
 import { getSpecies } from '../data/species'
-import { playableLevels, termId, termTestTitle, type WordStageDef } from '../data/words'
+import { playableLevels, termClearLevelLabel, termId, termTestTitle, type WordStageDef } from '../data/words'
 import { evolutionInfo } from '../game/logic'
 import { CharacterSprite } from '../game/sprites'
 import { useAsyncData } from '../state/hooks'
@@ -69,11 +69,13 @@ export function Home() {
       nextPractice,
       nextStageTest,
       nextTerm,
+      // まとめテスト100点の最高到達レベル（第13回）
+      termLevel: termClearLevelLabel(termPerfectSet),
     }
   }, [profileId])
 
   if (!data) return <LoadingView />
-  const { profile, unknown, mastered, buddy, alpha, totalPlayable, alphabetDone, nextPractice, nextStageTest, nextTerm } = data
+  const { profile, unknown, mastered, buddy, alpha, totalPlayable, alphabetDone, nextPractice, nextStageTest, nextTerm, termLevel } = data
 
   const recommend = !alphabetDone && alpha.upper < 26
     ? { text: `アルファベットの おおもじを れんしゅうしよう（いま ${alpha.upper}/26）`, route: { name: 'alphabet' } as const }
@@ -99,6 +101,7 @@ export function Home() {
             {profile.name.slice(0, 1)}
           </span>
           <span>{profile.name}</span>
+          {termLevel && <span className="level-badge">Lv {termLevel}</span>}
         </button>
         <div className="home-badges">
           <StatusChips />

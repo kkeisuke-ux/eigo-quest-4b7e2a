@@ -82,11 +82,15 @@ export function InkCanvas(props: Props) {
   const cbRef = useRef({ onStrokeStart, onStrokeEnd, onInkChange, onDiag, penColor, baseWidth, penTool, disabled, allowTouchInk })
   cbRef.current = { onStrokeStart, onStrokeEnd, onInkChange, onDiag, penColor, baseWidth, penTool, disabled, allowTouchInk }
 
+  // 2Dコンテキストは1回だけ取得してキャッシュ（pointermoveごとのgetContextをやめて
+  // 書き味を軽くする。第13回）
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null)
   const getCtx = (): CanvasRenderingContext2D | null => {
+    if (ctxRef.current) return ctxRef.current
     const canvas = canvasRef.current
     if (!canvas) return null
-    const ctx = canvas.getContext('2d', { desynchronized: true }) as CanvasRenderingContext2D | null
-    return ctx
+    ctxRef.current = canvas.getContext('2d', { desynchronized: true }) as CanvasRenderingContext2D | null
+    return ctxRef.current
   }
 
   const widthFor = (pressure: number, pointerType: string, base: number): number => {

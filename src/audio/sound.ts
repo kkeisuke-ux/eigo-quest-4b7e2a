@@ -14,6 +14,16 @@ let reverbIn: GainNode | null = null
 let seBus: GainNode | null = null
 /** 合成BGM用バス（bgmVolume×ducking を反映） */
 let bgmBus: GainNode | null = null
+/**
+ * ファイルBGM専用バス（第10回）。iOSはHTMLAudioElementのvolume設定を無視するため、
+ * ファイルBGMもWeb Audioに通して音量スライダーとducking（発音中に下げる）を効かせる。
+ * mp3はローパスEQ・リバーブを通さず素の音のままdestinationへ。
+ */
+let fileBgmBus: GainNode | null = null
+/** 内蔵発音音声（public/audio/voice/）用バス（第12回）。voiceVolume×増幅を反映 */
+let voiceBus: GainNode | null = null
+/** 内蔵発音の増幅係数（Web Audioは1超の増幅が可能。TTSより大きく鳴らせる） */
+const VOICE_FILE_GAIN = 1.3
 
 function makeImpulse(c: AudioContext): AudioBuffer {
   const len = Math.floor(c.sampleRate * 0.9)
@@ -48,6 +58,10 @@ function ac(): AudioContext | null {
     bgmBus = ctx.createGain()
     bgmBus.connect(out)
     bgmBus.connect(reverbIn)
+    fileBgmBus = ctx.createGain()
+    fileBgmBus.connect(ctx.destination)
+    voiceBus = ctx.createGain()
+    voiceBus.connect(ctx.destination)
     applyVolumesToBuses()
   }
   if (ctx.state === 'suspended') void ctx.resume()
@@ -55,8 +69,8 @@ function ac(): AudioContext | null {
 }
 
 // ---------------- audio ducking（仕様 §35） ----------------
-/** 発音中にBGMを下げる倍率（発音中はほぼ無音にして声を際立たせる） */
-const DUCK_RATIO = 0.12
+/** 発音中にBGMを下げる倍率（第10回: 0.12→0.05。発音中はほぼ無音にして声を際立たせる） */
+const DUCK_RATIO = 0.05
 let duckCount = 0
 
 function currentBgmGain(): number {
@@ -74,9 +88,20 @@ function applyVolumesToBuses(rampSec = 0.05) {
     bgmBus.gain.cancelScheduledValues(ctx.currentTime)
     bgmBus.gain.setTargetAtTime(currentBgmGain(), ctx.currentTime, Math.max(0.03, rampSec))
   }
-  if (fileBgm && fileBgm.el) {
-    fileBgm.el.volume = Math.min(1, currentBgmGain() * FILE_BGM_GAIN)
+  if (ctx && fileBgmBus) {
+    fileBgmBus.gain.cancelScheduledValues(ctx.currentTime)
+    fileBgmBus.gain.setTargetAtTime(currentBgmGain() * FILE_BGM_GAIN, ctx.currentTime, Math.max(0.03, rampSec))
   }
+  if (ctx && voiceBus) {
+    voiceBus.gain.cancelScheduledValues(ctx.currentTime)
+    voiceBus.gain.setTargetAtTime(getAppFlags().voiceVolume * VOICE_FILE_GAIN, ctx.currentTime, 0.03)
+  }
+}
+
+/** 内蔵発音の再生先（tts.tsのFileVoiceが使う。第12回） */
+export function getVoiceOutput(): { ctx: AudioContext; bus: GainNode } | null {
+  const c = ac()
+  return c && voiceBus ? { ctx: c, bus: voiceBus } : null
 }
 
 /**
@@ -131,26 +156,37 @@ const SE_FILES: Record<SeName, string> = {
   evolve: 'se-evolve.mp3', // OtoLogic「ベルアクセント14-1(高)」
 }
 
-const seCache = new Map<SeName, HTMLAudioElement | 'missing'>()
+// SEファイルはデコード済みバッファをseBus経由で鳴らす（第10回）。
+// HTMLAudioElement.volumeはiOSで無視されるため、音量はseBus（Web Audio）で反映する。
+const seBuffers = new Map<SeName, AudioBuffer | 'missing' | 'loading'>()
 
 function tryLoadSe(name: SeName): void {
-  if (seCache.has(name)) return
-  const el = new Audio(`./audio/${SE_FILES[name]}`)
-  el.preload = 'auto'
-  el.addEventListener('error', () => seCache.set(name, 'missing'), { once: true })
-  el.addEventListener('canplaythrough', () => {
-    if (seCache.get(name) !== 'missing') seCache.set(name, el)
-  }, { once: true })
-  el.load()
+  if (seBuffers.has(name)) return
+  seBuffers.set(name, 'loading')
+  void (async () => {
+    try {
+      const res = await fetch(`./audio/${SE_FILES[name]}`)
+      if (!res.ok) throw new Error(String(res.status))
+      const data = await res.arrayBuffer()
+      const c = ac()
+      if (!c) throw new Error('no audio context')
+      seBuffers.set(name, await c.decodeAudioData(data))
+    } catch {
+      seBuffers.set(name, 'missing')
+    }
+  })()
 }
 
 function playFileSe(name: SeName): boolean {
-  const hit = seCache.get(name)
-  if (!(hit instanceof HTMLAudioElement)) return false
+  const buf = seBuffers.get(name)
+  if (!(buf instanceof AudioBuffer)) return false
+  const c = ac()
+  if (!c || !seBus) return false
   try {
-    hit.volume = Math.min(1, getAppFlags().seVolume)
-    hit.currentTime = 0
-    void hit.play()
+    const src = c.createBufferSource()
+    src.buffer = buf
+    src.connect(seBus)
+    src.start()
     return true
   } catch {
     return false
@@ -405,12 +441,13 @@ const BGM_FILES: Record<BgmScene, string> = {
   practice: 'bgm-study.mp3',
 }
 
-/** ファイルBGMはループ用にelement.volumeへ直接反映（バスを通らない）ための補正係数 */
-const FILE_BGM_GAIN = 1.0
+/** mp3は合成音より音圧が高いので少し絞る補正係数（音量スライダー・duckingはfileBgmBusで効く） */
+const FILE_BGM_GAIN = 0.6
 
 interface FileBgm {
   scene: BgmScene
   el: HTMLAudioElement
+  node: MediaElementAudioSourceNode
 }
 let fileBgm: FileBgm | null = null
 const bgmFileMissing = new Set<BgmScene>()
@@ -507,25 +544,42 @@ function startSynthBgm() {
 function stopFileBgm() {
   if (fileBgm) {
     fileBgm.el.pause()
+    try {
+      fileBgm.node.disconnect()
+    } catch {
+      // すでに切断済みなら無視
+    }
     fileBgm = null
   }
 }
 
 function tryStartFileBgm(scene: BgmScene): boolean {
   if (bgmFileMissing.has(scene)) return false
+  const c = ac()
+  if (!c || !fileBgmBus) return false
   const el = new Audio(`./audio/${BGM_FILES[scene]}`)
   el.loop = true
-  el.volume = Math.min(1, currentBgmGain() * FILE_BGM_GAIN)
+  // iOSはel.volumeを無視する。音量はWeb Audio（fileBgmBus）側で制御するため常に1（第10回）
+  el.volume = 1
+  let node: MediaElementAudioSourceNode
+  try {
+    node = c.createMediaElementSource(el)
+    node.connect(fileBgmBus)
+  } catch {
+    // MediaElementSourceが作れない環境では合成BGMへ
+    bgmFileMissing.add(scene)
+    return false
+  }
   el.addEventListener('error', () => {
     bgmFileMissing.add(scene)
     if (fileBgm?.el === el) {
-      fileBgm = null
+      stopFileBgm()
       if (getAppFlags().bgmOn) startSynthBgm()
     }
   })
   const p = el.play()
   if (p) p.catch(() => undefined)
-  fileBgm = { scene, el }
+  fileBgm = { scene, el, node }
   playingScene = scene
   return true
 }

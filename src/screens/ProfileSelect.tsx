@@ -2,14 +2,27 @@
 import { useState } from 'react'
 import { setStrictnessRuntime } from '../config/judgeRuntime'
 import { GRADE_LABELS, gradeLabelOf } from '../data/grades'
+import { termClearLevelLabel } from '../data/words'
 import { useAsyncData } from '../state/hooks'
 import { bumpData, navigate, selectProfile } from '../state/store'
-import { MAX_PROFILES, createProfile, deleteProfileDeep, listProfiles, saveProfile } from '../storage/repo'
+import { MAX_PROFILES, createProfile, deleteProfileDeep, listProfiles, listTestResults, saveProfile } from '../storage/repo'
 import type { Profile } from '../storage/models'
 import { Button, LoadingView, Modal } from '../ui/components'
 
 export function ProfileSelect() {
-  const { data: profiles } = useAsyncData(() => listProfiles(), [])
+  // 各プロフィールの到達レベル（まとめテスト100点の最高。第13回）も一緒に読む
+  const { data } = useAsyncData(async () => {
+    const list = await listProfiles()
+    return Promise.all(
+      list.map(async (p) => {
+        const results = await listTestResults(p.id)
+        const perfectIds = results.filter((r) => r.kind === 'term' && r.total > 0 && r.correct === r.total).map((r) => r.targetId)
+        return { profile: p, level: termClearLevelLabel(perfectIds) }
+      })
+    )
+  }, [])
+  const profiles = data?.map((d) => d.profile) ?? null
+  const levelOf = new Map((data ?? []).map((d) => [d.profile.id, d.level]))
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Profile | null>(null)
   const [name, setName] = useState('')
@@ -75,7 +88,12 @@ export function ProfileSelect() {
               {p.name.slice(0, 1)}
             </span>
             <span className="profile-name">{p.name}</span>
-            <span className="profile-grade">{gradeLabelOf(p.grade)}</span>
+            {/* 到達レベルを主役に。まだ100点がない子は学年を出す（第13回） */}
+            {levelOf.get(p.id) ? (
+              <span className="level-badge profile-level">Lv {levelOf.get(p.id)}</span>
+            ) : (
+              <span className="profile-grade">{gradeLabelOf(p.grade)}</span>
+            )}
             <button
               className="profile-edit"
               onClick={(e) => {

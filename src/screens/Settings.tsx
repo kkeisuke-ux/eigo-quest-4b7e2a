@@ -1,13 +1,23 @@
 // 設定: 文字の判定・音量3系統・バックアップ・診断・デバッグ・入力設定・音源クレジット。
-import { useRef, useState } from 'react'
-import { getAppFlags, setAllowTouchInk, setVolume } from '../config/appFlags'
+import { useEffect, useRef, useState } from 'react'
+import { getAppFlags, setAllowTouchInk, setVoiceUri, setVolume } from '../config/appFlags'
 import { DEFAULT_STRICTNESS, STRICTNESS_LABELS } from '../config/judgeConfig'
 import { setStrictnessRuntime } from '../config/judgeRuntime'
 import { refreshVolumes, setBgm, setSe } from '../audio/sound'
-import { currentVoiceName, speakWord, speechAvailable } from '../audio/tts'
+import { currentVoiceName, listEnglishVoices, refreshVoiceChoice, speakWord, speechAvailable } from '../audio/tts'
 import { useAsyncData } from '../state/hooks'
 import { bumpData, navigate, showToast, useAppState } from '../state/store'
-import { downloadBackup, importAllData } from '../storage/backup'
+import {
+  canShareBackup,
+  downloadBackup,
+  downloadProfileBackup,
+  importAllData,
+  importProfileData,
+  inspectBackup,
+  shareBackup,
+  shareProfileBackup,
+  type BackupInfo,
+} from '../storage/backup'
 import { getProfile, saveProfile } from '../storage/repo'
 import { Button, Card, LoadingView, Modal, TopBar } from '../ui/components'
 
@@ -43,10 +53,18 @@ export function Settings() {
   useAppState((s) => s.soundVersion)
   const { data: profile, reload } = useAsyncData(async () => (profileId ? ((await getProfile(profileId)) ?? null) : null), [profileId])
   const fileRef = useRef<HTMLInputElement | null>(null)
-  const [pendingImport, setPendingImport] = useState<string | null>(null)
+  const [pendingImport, setPendingImport] = useState<{ text: string; info: BackupInfo; sameProfileExists: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   const [, setVolTick] = useState(0)
   const flags = getAppFlags()
+
+  // 音声リストが遅れて届いたら選択肢を更新（iOS対策。第11回）
+  useEffect(() => {
+    if (typeof speechSynthesis === 'undefined') return
+    const onChanged = () => setVolTick((t) => t + 1)
+    speechSynthesis.addEventListener('voiceschanged', onChanged)
+    return () => speechSynthesis.removeEventListener('voiceschanged', onChanged)
+  }, [])
 
   if (!profile) return <LoadingView />
 
@@ -71,15 +89,27 @@ export function Settings() {
   const onFile = async (f: File | null) => {
     if (!f) return
     const text = await f.text()
-    setPendingImport(text)
+    try {
+      const info = inspectBackup(text)
+      const sameProfileExists =
+        info.scope === 'profile' && info.profileId != null ? (await getProfile(info.profileId)) != null : false
+      setPendingImport({ text, info, sameProfileExists })
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ファイルを読み取れません')
+    }
   }
 
   const doImport = async () => {
     if (!pendingImport) return
     setBusy(true)
     try {
-      const summary = await importAllData(pendingImport)
-      showToast(`よみこみ完了（${summary.records}けん）。さいよみこみします…`)
+      if (pendingImport.info.scope === 'profile') {
+        const summary = await importProfileData(pendingImport.text)
+        showToast(`「${summary.profileName}」のデータを よみこみました（${summary.records}けん）。さいよみこみします…`)
+      } else {
+        const summary = await importAllData(pendingImport.text)
+        showToast(`よみこみ完了（${summary.records}けん）。さいよみこみします…`)
+      }
       window.setTimeout(() => window.location.reload(), 1200)
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'よみこみに しっぱいしました')
@@ -134,6 +164,35 @@ export function Settings() {
             <VolumeSlider label="こうかおん" value={flags.seVolume} onChange={(v) => changeVolume('se', v)} />
             <VolumeSlider label="えいごの声" value={flags.voiceVolume} onChange={(v) => changeVolume('voice', v)} />
           </div>
+          <p className="tile-sub">
+            🔊 たんご・アルファベット・れいぶんは、<b>アプリに内蔵したクリアな女性の声</b>（アメリカ英語）で発音します。
+            この端末の読み上げ機能の音質には左右されません。
+          </p>
+          {speechAvailable() && (
+            <div className="voice-pick-row">
+              <label className="field-label">よみあげの声を えらぶ（えにっきの読み上げなど、内蔵音声がない文にだけ使われます）</label>
+              <select
+                className="voice-select"
+                value={flags.voiceUri ?? ''}
+                onChange={(e) => {
+                  const uri = e.target.value || null
+                  void setVoiceUri(uri).then(() => {
+                    refreshVoiceChoice()
+                    setVolTick((t) => t + 1)
+                    void speakWord('apple')
+                  })
+                }}
+              >
+                <option value="">じどうで えらぶ（おすすめ）</option>
+                {listEnglishVoices().map((v) => (
+                  <option key={v.voiceURI} value={v.voiceURI}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+              <p className="tile-sub">かえると ためしに 1回 はつおんします。「※へんな声」は ジョーク用の声です</p>
+            </div>
+          )}
           <div className="row gap wrap">
             <Button size="sm" variant="secondary" onClick={() => void speakWord('apple')}>
               えいごの声を ためす（apple）
@@ -156,7 +215,20 @@ export function Settings() {
             データはこのiPadの中だけに保存されています。故障やSafariのデータ削除に備えて、ときどき書き出してください（全プロフィール分をまとめて書き出します）。
           </p>
           <div className="row gap wrap">
-            <Button onClick={() => void downloadBackup()}>バックアップを書き出す</Button>
+            {canShareBackup() && (
+              <Button
+                onClick={() =>
+                  void shareBackup().then((ok) => {
+                    if (!ok) showToast('この端末では共有できません。「書き出す」を使ってください')
+                  })
+                }
+              >
+                AirDropで おくる（全員分）
+              </Button>
+            )}
+            <Button variant={canShareBackup() ? 'secondary' : undefined} onClick={() => void downloadBackup()}>
+              バックアップを書き出す
+            </Button>
             <Button variant="secondary" onClick={() => fileRef.current?.click()}>
               バックアップを読み込む
             </Button>
@@ -170,6 +242,35 @@ export function Settings() {
                 e.target.value = ''
               }}
             />
+          </div>
+          <p className="tile-sub" style={{ marginTop: 12 }}>
+            <b>ひとりだけ移すには:</b> 下のボタンで「{profile.name}」のデータだけを送れます。読み込んだ端末では{' '}
+            <b>{profile.name}のデータだけが追加・上書き</b>され、ほかの人のデータはそのまま残ります（読み込みは上の「バックアップを読み込む」でOK。ファイルの種類は自動で見分けます）。
+            べつの人を送りたいときは、その人のプロフィールに切り替えてから押してください。
+          </p>
+          <div className="row gap wrap">
+            {canShareBackup() && (
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  void shareProfileBackup(profile.id).then((ok) => {
+                    if (!ok) showToast('この端末では共有できません。「書き出す」を使ってください')
+                  })
+                }
+              >
+                「{profile.name}」だけ AirDropで おくる
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              onClick={() =>
+                void downloadProfileBackup(profile.id).then((ok) => {
+                  if (!ok) showToast('プロフィールが みつかりませんでした')
+                })
+              }
+            >
+              「{profile.name}」だけ ファイルに書き出す
+            </Button>
           </div>
         </Card>
 
@@ -223,18 +324,46 @@ export function Settings() {
       </div>
 
       <Modal open={pendingImport != null} onClose={() => !busy && setPendingImport(null)}>
-        <h2>バックアップを読み込む</h2>
-        <p className="danger-text">
-          いまの ぜんいんの データを、ファイルの内容で <b>すべて置き換えます</b>。この操作は元に戻せません。
-        </p>
-        <div className="row gap">
-          <Button variant="danger" onClick={() => void doImport()} disabled={busy}>
-            {busy ? 'よみこみちゅう…' : '置き換えて読み込む'}
-          </Button>
-          <Button variant="ghost" onClick={() => setPendingImport(null)} disabled={busy}>
-            やめる
-          </Button>
-        </div>
+        {pendingImport?.info.scope === 'profile' ? (
+          <>
+            <h2>「{pendingImport.info.profileName}」のデータを読み込む</h2>
+            <p>
+              ひとりぶんのバックアップです。<b>「{pendingImport.info.profileName}」のデータだけ</b>を この端末に入れます。ほかの人のデータは かわりません。
+            </p>
+            {pendingImport.sameProfileExists && (
+              <p className="danger-text">
+                この端末にも「{pendingImport.info.profileName}」がいます。その人のいまのデータは、ファイルの内容で <b>置き換わります</b>（元に戻せません）。
+              </p>
+            )}
+            <div className="row gap">
+              <Button
+                variant={pendingImport.sameProfileExists ? 'danger' : 'accent'}
+                onClick={() => void doImport()}
+                disabled={busy}
+              >
+                {busy ? 'よみこみちゅう…' : pendingImport.sameProfileExists ? '置き換えて読み込む' : 'この人を追加する'}
+              </Button>
+              <Button variant="ghost" onClick={() => setPendingImport(null)} disabled={busy}>
+                やめる
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2>バックアップを読み込む</h2>
+            <p className="danger-text">
+              いまの ぜんいんの データを、ファイルの内容で <b>すべて置き換えます</b>。この操作は元に戻せません。
+            </p>
+            <div className="row gap">
+              <Button variant="danger" onClick={() => void doImport()} disabled={busy}>
+                {busy ? 'よみこみちゅう…' : '置き換えて読み込む'}
+              </Button>
+              <Button variant="ghost" onClick={() => setPendingImport(null)} disabled={busy}>
+                やめる
+              </Button>
+            </div>
+          </>
+        )}
       </Modal>
     </div>
   )

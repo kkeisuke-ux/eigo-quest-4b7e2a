@@ -16,6 +16,8 @@ export interface AppFlags {
   seVolume: number
   /** 英語音声音量 0..1（初期値: 大きめ） */
   voiceVolume: number
+  /** 設定画面で選んだ英語音声のvoiceURI（null=自動で選ぶ。第11回） */
+  voiceUri: string | null
 }
 
 export const DEFAULT_FLAGS: AppFlags = {
@@ -24,9 +26,11 @@ export const DEFAULT_FLAGS: AppFlags = {
   bgmOn: true,
   // 2026-08-08 第9回: 「発音をもっと大きく・BGMは小さくてよい」→ BGMをさらに下げて
   // 発音（TTSは既に最大音量）を相対的に際立たせる
+  // 2026-08-09 第10回: 効果音も下げて発音をさらに聞き取りやすく（0.5→0.35）
   bgmVolume: 0.03,
-  seVolume: 0.5,
+  seVolume: 0.35,
   voiceVolume: 1.0,
+  voiceUri: null,
 }
 
 let flags: AppFlags = { ...DEFAULT_FLAGS }
@@ -47,13 +51,20 @@ export async function loadAppFlags(): Promise<void> {
       savedBgm = DEFAULT_FLAGS.bgmVolume
       await putSetting('bgmVolume', savedBgm)
     }
+    // 第10回: 旧デフォルトの効果音0.5のままなら新デフォルト0.35へ（手動変更値は尊重）
+    let savedSe = await getSetting<number>('seVolume')
+    if (savedSe != null && near(savedSe, 0.5)) {
+      savedSe = DEFAULT_FLAGS.seVolume
+      await putSetting('seVolume', savedSe)
+    }
     flags = {
       allowTouchInk: (await getSetting<boolean>('allowTouchInk')) ?? DEFAULT_FLAGS.allowTouchInk,
       seOn: (await getSetting<boolean>('seOn')) ?? DEFAULT_FLAGS.seOn,
       bgmOn: (await getSetting<boolean>('bgmOn')) ?? DEFAULT_FLAGS.bgmOn,
       bgmVolume: savedBgm ?? DEFAULT_FLAGS.bgmVolume,
-      seVolume: (await getSetting<number>('seVolume')) ?? DEFAULT_FLAGS.seVolume,
+      seVolume: savedSe ?? DEFAULT_FLAGS.seVolume,
       voiceVolume: savedVoice ?? DEFAULT_FLAGS.voiceVolume,
+      voiceUri: (await getSetting<string | null>('voiceUri')) ?? DEFAULT_FLAGS.voiceUri,
     }
   } catch {
     flags = { ...DEFAULT_FLAGS }
@@ -78,6 +89,12 @@ export async function setSeOn(value: boolean): Promise<void> {
 export async function setBgmOn(value: boolean): Promise<void> {
   flags = { ...flags, bgmOn: value }
   await putSetting('bgmOn', value)
+}
+
+/** 英語音声の選択を保存（null=自動。第11回） */
+export async function setVoiceUri(uri: string | null): Promise<void> {
+  flags = { ...flags, voiceUri: uri }
+  await putSetting('voiceUri', uri)
 }
 
 export async function setVolume(kind: 'bgm' | 'se' | 'voice', value: number): Promise<void> {

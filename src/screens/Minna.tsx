@@ -3,7 +3,7 @@
 // - 各学年相当・各学期まとめテストの最高点
 // - 図鑑の仲間数
 import { totalDexEntries } from '../data/species'
-import { playableLevels, termId, termLabel } from '../data/words'
+import { playableLevels, termClearLevelLabel, termId, termLabel } from '../data/words'
 import { useAsyncData } from '../state/hooks'
 import { useAppState } from '../state/store'
 import {
@@ -19,6 +19,8 @@ interface ProfileDash {
   id: string
   name: string
   color: string
+  /** まとめテスト100点の最高到達レベル（第13回） */
+  termLevel: string | null
   upper: number
   lower: number
   words: number
@@ -62,6 +64,7 @@ export function Minna() {
           id: p.id,
           name: p.name,
           color: p.color,
+          termLevel: termClearLevelLabel(termPerfect.keys()),
           upper: alpha.upper,
           lower: alpha.lower,
           words: progress.filter((x) => x.masteredAt != null).length,
@@ -87,7 +90,10 @@ export function Minna() {
                 <span className="avatar" style={{ background: d.color }}>
                   {d.name.slice(0, 1)}
                 </span>
-                <p className="minna-name">{d.name}</p>
+                <p className="minna-name">
+                  {d.name}
+                  {d.termLevel && <span className="level-badge">Lv {d.termLevel}</span>}
+                </p>
               </div>
               <div className="minna-stats">
                 <div className="minna-stat">

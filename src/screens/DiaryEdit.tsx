@@ -236,6 +236,35 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
           />
         </Card>
 
+        {/* 第13回: 文字を書くところを絵のすぐ下に、れいぶん検索はその下に */}
+        <Card className="diary-text-card">
+          <div className="diary-toolbar">
+            <span className="diary-tool-label">きょうの えいご（1〜3文・すきに かこう）</span>
+            <button
+              className={`tool-btn ${textEraser ? 'tool-btn-active' : ''}`}
+              onClick={() => setTextEraser(!textEraser)}
+            >
+              🧽 けしゴム{textEraser ? 'ちゅう' : ''}
+            </button>
+            <Button size="sm" variant="ghost" onClick={() => textRef.current?.undo()}>
+              もどす
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => textRef.current?.clear()}>
+              ぜんぶけす
+            </Button>
+          </div>
+          <InkCanvas
+            inkRef={textRef}
+            aspectRatio={TEXT_ASPECT}
+            penColor="#233047"
+            baseWidth={3.6}
+            penTool={textEraser ? 'eraser' : 'pen'}
+            allowTouchInk={getAppFlags().allowTouchInk}
+            guide={<TextRuleLines rows={TEXT_ROWS} className="rule-svg" />}
+            className="diary-canvas diary-text-canvas"
+          />
+        </Card>
+
         <Card className="diary-helper-card">
           <div className="diary-toolbar">
             <span className="diary-tool-label">💡 れいぶんを さがす — いいたいことを 日本語で いってみよう</span>
@@ -276,34 +305,6 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
               ))}
             </ul>
           )}
-        </Card>
-
-        <Card className="diary-text-card">
-          <div className="diary-toolbar">
-            <span className="diary-tool-label">きょうの えいご（1〜3文・すきに かこう）</span>
-            <button
-              className={`tool-btn ${textEraser ? 'tool-btn-active' : ''}`}
-              onClick={() => setTextEraser(!textEraser)}
-            >
-              🧽 けしゴム{textEraser ? 'ちゅう' : ''}
-            </button>
-            <Button size="sm" variant="ghost" onClick={() => textRef.current?.undo()}>
-              もどす
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => textRef.current?.clear()}>
-              ぜんぶけす
-            </Button>
-          </div>
-          <InkCanvas
-            inkRef={textRef}
-            aspectRatio={TEXT_ASPECT}
-            penColor="#233047"
-            baseWidth={3.6}
-            penTool={textEraser ? 'eraser' : 'pen'}
-            allowTouchInk={getAppFlags().allowTouchInk}
-            guide={<TextRuleLines rows={TEXT_ROWS} className="rule-svg" />}
-            className="diary-canvas diary-text-canvas"
-          />
         </Card>
 
         <div className="row gap wrap diary-actions">

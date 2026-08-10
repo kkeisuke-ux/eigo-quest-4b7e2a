@@ -140,6 +140,24 @@ export function termTestTitle(levelId: string, termIndex: number): string {
   return `${level?.label ?? levelId} ${termLabel(termIndex)} まとめテスト`
 }
 
+/**
+ * まとめテスト100点の最高到達レベル表示（第13回。かんじクエストと同じ仕組み）。
+ * 例:「ようじ 1学期」「小4 2学期」。100点がまだ無ければnull。
+ * レベル順（LEVELS配列順）→学期順で一番進んでいる100点クリア済みまとめテストを返す。
+ */
+export function termClearLevelLabel(perfectTermIds: Iterable<string>): string | null {
+  let best: { li: number; ti: number } | null = null
+  for (const id of perfectTermIds) {
+    const p = parseTermId(id)
+    if (!p) continue
+    const li = LEVELS.findIndex((lv) => lv.id === p.levelId)
+    if (li < 0) continue
+    if (!best || li > best.li || (li === best.li && p.termIndex > best.ti)) best = { li, ti: p.termIndex }
+  }
+  if (!best) return null
+  return `${LEVELS[best.li].label} ${termLabel(best.ti)}`
+}
+
 /** 日本語から英単語を探す（「ことばを調べる」。仕様 §34） */
 export function searchByJa(query: string): Word[] {
   const q = query.trim()

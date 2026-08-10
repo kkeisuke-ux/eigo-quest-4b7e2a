@@ -3132,3 +3132,49 @@ body {
   color: var(--accent-dark);
   margin: 4px 0 2px;
 }
+
+/* 英語音声の選択（第11回） */
+.voice-pick-row {
+  margin: 10px 0;
+}
+.voice-select {
+  width: 100%;
+  max-width: 420px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #d8d2c2;
+  font-size: 15px;
+  background: #fff;
+}
+
+/* まとめテスト100点の到達レベルバッジ（第13回） */
+.level-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #fdeec8;
+  color: #8a6a1f;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.profile-card .profile-level {
+  margin-left: 0;
+  margin-top: 4px;
+  font-size: 15px;
+  padding: 4px 12px;
+}
+
+/* 絵日記: 手のひらがカードに触れてもページがスクロールしないように（書き味改善。第13回） */
+.diary-draw-card,
+.diary-text-card {
+  touch-action: none;
+}
+
+/* 絵日記一覧: 手書き英文のサムネイル（第13回） */
+.diary-thumb-text {
+  border-top: 1px dashed #cfd8e6;
+  margin-top: 2px;
+}

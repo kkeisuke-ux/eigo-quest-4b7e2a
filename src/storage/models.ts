@@ -117,13 +117,14 @@ export interface TestResultRecord {
   items: TestItemRecord[]
 }
 
-/** まとめテストの途中保存（仕様 §25: 途中経過は自動保存） */
+/** まとめテスト・アルファベットテストの途中保存（仕様 §25: 途中経過は自動保存） */
 export interface TestSessionRecord {
   profileId: string
-  /** 'term:<termId>' */
+  /** 'term:<termId>' または 'alphabet:<upper|lower>'（第15回） */
   testKey: string
-  kind: 'term'
+  kind: 'term' | 'alphabet'
   targetId: string
+  /** アルファベットテストでは文字の出題順 */
   wordIds: string[]
   currentIndex: number
   items: TestItemRecord[]

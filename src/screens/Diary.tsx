@@ -14,7 +14,16 @@ function todayKey(): string {
 function labelOf(dateKey: string): string {
   const d = new Date(`${dateKey}T00:00:00`)
   const youbi = ['にち', 'げつ', 'か', 'すい', 'もく', 'きん', 'ど'][d.getDay()]
-  return `${d.getMonth() + 1}月${d.getDate()}日（${youbi}）`
+  // 年も表示する（第13回）
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${youbi}）`
+}
+
+/** 手書き英文サムネの高さ（書かれた範囲に合わせる。pdf.tsと同じ考え方） */
+function textThumbHeight(e: { textStrokes: { points: [number, number][] }[]; textBoxWidth: number }, outWidth: number): number {
+  const srcW = e.textBoxWidth || 800
+  const maxY = Math.max(...e.textStrokes.flatMap((s) => s.points.map((p) => p[1])), srcW * 0.12)
+  const hRatio = Math.min(0.45, (maxY + srcW * 0.03) / srcW)
+  return Math.round(outWidth * hRatio)
 }
 
 export function Diary() {
@@ -56,7 +65,16 @@ export function Diary() {
                 ) : (
                   <div className="diary-thumb diary-thumb-empty">えは まだ</div>
                 )}
-                <div className="diary-tile-text">{e.originalText || '（えいごは まだ）'}</div>
+                {/* かいた英文もサムネに出す（第13回） */}
+                {e.textStrokes.length > 0 ? (
+                  <img
+                    className="diary-thumb diary-thumb-text"
+                    src={strokesToDataUrl(e.textStrokes, e.textBoxWidth || 800, 360, textThumbHeight(e, 360), 2.6)}
+                    alt={`${e.dateKey}の英文`}
+                  />
+                ) : (
+                  <div className="diary-tile-text">（えいごは まだ）</div>
+                )}
               </Card>
             ))}
           </div>
