@@ -1,11 +1,15 @@
 // ============================================================
-// 発音音声ファイルの一括生成（第12回: TTSの品質が端末依存で使いものに
+// 発音音声ファイルの生成（第12回: TTSの品質が端末依存で使いものに
 // ならないため、クリアな女性声をアプリに内蔵する）。
 //   node scripts/gen-voice.mjs
-// - Piper TTS（完全ローカル・MITライセンス・en_US-amy-medium=女性声）で
-//   アルファベット26字・全単語・全例文の音声を合成
+// - Piper TTS（完全ローカル・MITライセンス・en_US-amy-medium=女性声、
+//   Zのみen_US-lessac-medium）でアルファベット26字・全単語・全例文の音声を合成
 // - ffmpegでmp3化して public/audio/voice/<slug>.mp3 に配置
 // - 生成した一覧を src/data/voiceManifest.json に書き出す（実行時の存在判定用）
+// - 第16回: **増分生成**。既にmp3があるキーは再合成しない（Piperの合成は
+//   noise_scaleにより確率的で、既に確認済みの音声を毎回上書きすると偶然
+//   悪い結果に化けることがあるため）。特定の音を作り直したい時だけ該当mp3を
+//   削除してから実行し、Whisper等で必ず再確認すること
 // 必要ツール（配置済み）: ../_tools/piper/piper/piper.exe と en_US-amy-medium.onnx
 // ============================================================
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -62,18 +66,19 @@ const items = new Map() // slug -> 読み上げテキスト
 
 // 1) アルファベット26字（スラッグは小文字1字）。
 // 第15回: 単独の大文字1文字（例"D"）をそのままPiperに渡すと、G2P（音素変換）が
-// 文字名として安定して読まないことがあり、D/G/Zなどが不明瞭になっていた
-// （Zは語頭の有声摩擦音が弱まる、Gは"guh"と短く切れる、Dも同様の傾向）。
-// 全26字を「文字の呼び名」の英単語スペルに置き換え、確実に文字名として読ませる。
+// 文字名として安定して読まないことがあり、D/G/Zなどが不明瞭になっていた。
+// 第16回: 「文字の呼び名」の英単語スペル（dee/gee等）に置き換える案は一部の文字
+// （特にA="ay"）が単独だと間投詞"aye"（＝はい、/aɪ/）に化けて別の音になってしまい
+// 直らなかった。**大文字1文字+ピリオド**（"A."）が最も安定して文字名として読まれる
+// ことが判明（Whisper転写で26字中22字が完全一致、旧方式の20字より良好）。
+// Q("cue")・T("tee")は元のスペルの方が良好だったため維持。Zはamyだと"zee"と
+// 綴っても語頭の/z/が/s/に無声化する癖があり、その1字だけlessac音声を使う。
 const LETTER_NAMES = {
-  a: 'ay', b: 'bee', c: 'see', d: 'dee', e: 'ee', f: 'eff', g: 'gee', h: 'aitch',
-  i: 'eye', j: 'jay', k: 'kay', l: 'el', m: 'em', n: 'en', o: 'oh', p: 'pee',
-  q: 'cue', r: 'ar', s: 'ess', t: 'tee', u: 'you', v: 'vee', w: 'double you',
-  x: 'ex', y: 'why', z: 'zee',
+  q: 'cue', t: 'tee', z: 'zee',
 }
 for (let i = 0; i < 26; i++) {
   const lower = String.fromCharCode(97 + i)
-  items.set(lower, LETTER_NAMES[lower])
+  items.set(lower, LETTER_NAMES[lower] ?? `${lower.toUpperCase()}.`)
 }
 
 // 2) 単語（words.json の en）
@@ -91,7 +96,19 @@ for (const m of sentSrc.matchAll(/en:\s*'([^']+)'/g)) {
 // 4) 設定画面の試し聞き
 items.set(slug('apple'), 'apple')
 
-console.log(`生成対象: ${items.size}件（アルファベット26 + 単語 + 例文)`)
+// ---------- 既存ファイルは再合成しない（増分生成） ----------
+// Piperの合成はnoise_scale（既定0.667）により毎回結果が微妙に変わる確率的なもの。
+// lessac+"zee"（Z）はnoise_scale既定値でも約1/3の確率でしか語頭の/z/が正しく
+// 有声化されないことがWhisper転写の繰り返し検証で判明した（noise_scale=0の決定的
+// 合成にしても、たまたま悪い方に固定されるだけで解決しない）。他の文字・単語にも
+// 同様の確率的なブレはあり得るため、**既にmp3が存在するキーは全件再生成のたびに
+// 上書きしない**（そのまま温存する）。特定の音を再生成したい時だけ、該当mp3を
+// 手動で削除してからこのスクリプトを実行し、Whisperで再確認すること
+// （scripts配下に検証用のPython例あり。README「音源ファイルの配置」参照）。
+const PINNED_KEYS = [...items.keys()].filter((k) => fs.existsSync(path.join(OUT_DIR, `${k}.mp3`)))
+for (const k of PINNED_KEYS) items.delete(k)
+
+console.log(`生成対象: ${items.size}件（既存の${PINNED_KEYS.length}件はそのまま温存）`)
 
 fs.mkdirSync(OUT_DIR, { recursive: true })
 fs.rmSync(TMP_DIR, { recursive: true, force: true })
@@ -132,8 +149,8 @@ for (const key of items.keys()) {
   converted++
 }
 
-// ---------- マニフェスト ----------
-const keys = [...items.keys()].filter((k) => fs.existsSync(path.join(OUT_DIR, `${k}.mp3`))).sort()
+// ---------- マニフェスト（固定済みキーも対象に含める） ----------
+const keys = [...items.keys(), ...PINNED_KEYS].filter((k) => fs.existsSync(path.join(OUT_DIR, `${k}.mp3`))).sort()
 fs.writeFileSync(MANIFEST, JSON.stringify(keys), 'utf8')
 fs.rmSync(TMP_DIR, { recursive: true, force: true })
 
