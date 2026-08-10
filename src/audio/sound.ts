@@ -637,13 +637,33 @@ export async function setBgm(on: boolean): Promise<void> {
   bumpSound()
 }
 
-/** 最初のユーザー操作でAudioContextを起こし、BGM設定に従って再生を始める */
+/**
+ * 最初のユーザー操作でAudioContextを起こし、BGM設定に従って再生を始める。
+ * 第17回: 起動直後は鳴らず、設定の音ボタンをオフ→オンにすると鳴るようになる不具合の修正。
+ * 原因は `pointerdown` だけでは自動再生ポリシー上「有効なユーザー操作」と
+ * 認識されないブラウザ／OSの組み合わせがあり、AudioContextが`suspended`のまま
+ * 残っていたこと（音ボタンは<button>の`click`で発火するため確実に解除できていた）。
+ * pointerdown/pointerup/click/touchendの複数種類のイベントで試行し、
+ * resume()に加えて無音バッファを1回再生して確実にrunning状態へ持っていく。
+ */
 export function initSoundOnGesture() {
   // 音源ファイルの存在チェックを開始（あれば以後ファイルを再生）
   ;(Object.keys(SE_FILES) as SeName[]).forEach(tryLoadSe)
   const handler = () => {
-    ac()
+    const c = ac()
+    if (c) {
+      try {
+        const src = c.createBufferSource()
+        src.buffer = c.createBuffer(1, 1, c.sampleRate)
+        src.connect(c.destination)
+        src.start()
+      } catch {
+        // 無音バッファ再生に失敗してもresume()自体は試みているので致命的ではない
+      }
+    }
     syncBgm()
   }
-  window.addEventListener('pointerdown', handler, { passive: true })
+  for (const type of ['pointerdown', 'pointerup', 'click', 'touchend'] as const) {
+    window.addEventListener(type, handler, { passive: true })
+  }
 }
