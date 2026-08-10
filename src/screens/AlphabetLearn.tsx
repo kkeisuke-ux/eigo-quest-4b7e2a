@@ -37,10 +37,21 @@ const ROUND_BANNERS: Record<Round, string> = {
   free: 'こんどは じぶんの ちからで かいてみよう',
 }
 
-export function AlphabetLearn({ kind, startIndex = 0 }: { kind: AlphabetKind; startIndex?: number }) {
+export function AlphabetLearn({
+  kind,
+  startIndex = 0,
+  letters,
+}: {
+  kind: AlphabetKind
+  startIndex?: number
+  /** 指定時はこの文字だけを練習する（「にがてなもじだけ」モード） */
+  letters?: string[]
+}) {
   const profile = useProfile()
-  const items = kind === 'upper' ? UPPERCASE : LOWERCASE
-  const [index, setIndex] = useState(Math.min(startIndex, items.length - 1))
+  const allItems = kind === 'upper' ? UPPERCASE : LOWERCASE
+  const isSubset = !!letters && letters.length > 0
+  const items = isSubset ? allItems.filter((i) => letters!.includes(i.letter)) : allItems
+  const [index, setIndex] = useState(isSubset ? 0 : Math.min(startIndex, items.length - 1))
   const [round, setRound] = useState(0)
   const [tries, setTries] = useState(0)
   const [mark, setMark] = useState(false)
@@ -50,8 +61,10 @@ export function AlphabetLearn({ kind, startIndex = 0 }: { kind: AlphabetKind; st
 
   const item = items[index]
 
-  // 表示された瞬間に文字名を自動発音（仕様 §7）
-  useAutoSpeak(profile && !doneAll ? item.audio.name : null, 'letter', `${index}`)
+  // 表示された瞬間に文字名を自動発音（仕様 §7）。
+  // 第14回: ラウンドが変わるたび・まちがえて書き直すたびにも毎回発音する
+  // （keyにround/triesを含める。○表示中のmarkはfalseに戻った時点=次のラウンド開始）
+  useAutoSpeak(profile && !doneAll ? item.audio.name : null, 'letter', `${index}-${round}-${tries}`)
 
   if (!profile) return <LoadingView />
 
@@ -115,15 +128,25 @@ export function AlphabetLearn({ kind, startIndex = 0 }: { kind: AlphabetKind; st
         <TopBar title={kind === 'upper' ? 'おおもじ れんしゅう' : 'こもじ れんしゅう'} back={{ name: 'alphabet' }} />
         <div className="result-wrap">
           <div className="card result-main">
-            <BuddyCorner mood="celebrate" size={110} message="26もじ ぜんぶ かけたね！" />
-            <div className="result-score">{kind === 'upper' ? 'A〜Z' : 'a〜z'} かんりょう！</div>
+            <BuddyCorner
+              mood="celebrate"
+              size={110}
+              message={isSubset ? `にがてな ${items.length}もじ かけたね！` : '26もじ ぜんぶ かけたね！'}
+            />
+            <div className="result-score">
+              {isSubset ? `${items.map((i) => i.letter).join(' ')}` : kind === 'upper' ? 'A〜Z' : 'a〜z'} かんりょう！
+            </div>
             <CoinReward amount={earned} />
             <p className="termtest-status">
               つぎは <b>テスト</b>で おとを きいて かいてみよう！
             </p>
           </div>
           <div className="result-actions">
-            <Button size="lg" variant="accent" onClick={() => navigate({ name: 'alphabetTest', kind })}>
+            <Button
+              size="lg"
+              variant="accent"
+              onClick={() => navigate({ name: 'alphabetTest', kind, letters: isSubset ? items.map((i) => i.letter) : undefined })}
+            >
               テストへ！
             </Button>
             <Button size="sm" variant="ghost" onClick={() => navigate({ name: 'alphabet' })}>
@@ -140,7 +163,7 @@ export function AlphabetLearn({ kind, startIndex = 0 }: { kind: AlphabetKind; st
   return (
     <div className="screen">
       <TopBar
-        title={`${kind === 'upper' ? 'おおもじ' : 'こもじ'}　${index + 1} / ${items.length}`}
+        title={`${kind === 'upper' ? 'おおもじ' : 'こもじ'}${isSubset ? '（にがてなもじ）' : ''}　${index + 1} / ${items.length}`}
         back={{ name: 'alphabet' }}
       />
       <div className="step-banner">

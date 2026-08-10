@@ -12,7 +12,16 @@ import { playCorrect, playFinish, playPerfect, playWrong } from '../audio/sound'
 import { useAutoSpeak } from '../audio/useSpeech'
 import { useProfile } from '../state/hooks'
 import { bumpData, navigate, type AlphabetKind } from '../state/store'
-import { addActivity, addTestResult, alphabetMasteryCounts, getAlphabetProgress, saveAlphabetProgress } from '../storage/repo'
+import {
+  addActivity,
+  addTestResult,
+  alphabetMasteryCounts,
+  deleteTestSession,
+  getAlphabetProgress,
+  getTestSession,
+  saveAlphabetProgress,
+  saveTestSession,
+} from '../storage/repo'
 import type { ExpectedLetterJudge } from '../recognition/classify'
 import { LetterPad } from '../learn/LetterPad'
 import { TraceStep } from '../learn/TraceStep'
@@ -24,41 +33,84 @@ import { JudgeMark } from '../ui/JudgeMark'
 import { SpeakButton } from '../ui/SpeakButton'
 import { queueEvolutionFromEvents } from '../ui/EvolutionModal'
 
-type Phase = 'running' | 'reveal' | 'done'
+type Phase = 'init' | 'askResume' | 'running' | 'reveal' | 'done'
 
 interface ItemResult {
   letter: string
   correct: boolean
 }
 
-export function AlphabetTest({ kind }: { kind: AlphabetKind }) {
+export function AlphabetTest({ kind, letters }: { kind: AlphabetKind; letters?: string[] }) {
   const profile = useProfile()
-  const items = kind === 'upper' ? UPPERCASE : LOWERCASE
-  const [order] = useState(() => shuffled(items.map((i) => i.letter)))
+  const allItems = kind === 'upper' ? UPPERCASE : LOWERCASE
+  const isSubset = !!letters && letters.length > 0
+  const items = isSubset ? allItems.filter((i) => letters!.includes(i.letter)) : allItems
+  const [order, setOrder] = useState<string[]>([])
   const [index, setIndex] = useState(0)
-  const [phase, setPhase] = useState<Phase>('running')
+  const [phase, setPhase] = useState<Phase>('init')
   const [results, setResults] = useState<ItemResult[]>([])
   const [tries, setTries] = useState(0)
   const [mark, setMark] = useState<'correct' | 'wrong' | null>(null)
   const [revealMark, setRevealMark] = useState(false)
   const [buddyMood, setBuddyMood] = useState<BuddyMood>('idle')
+  const [savedIndex, setSavedIndex] = useState(0)
   const earnedRef = useRef(0)
   const evoQueueRef = useRef<ExpGrantEvents[]>([])
   const busyRef = useRef(false)
+  const testKey = `alphabet:${kind}${isSubset ? ':weak' : ''}`
 
   const letter = order[index]
   const audioName = letter?.toUpperCase() ?? null
 
-  // 出題と同時に文字名を発音（見本は見せない）。何度でも聞き直せる
-  useAutoSpeak(phase === 'running' || phase === 'reveal' ? audioName : null, 'letter', `${phase}-${index}`)
+  // 出題と同時に文字名を発音（見本は見せない）。何度でも聞き直せる。
+  // 第15回: まちがえて書き直す前にも毎回発音する（keyにtriesを含める）
+  useAutoSpeak(phase === 'running' || phase === 'reveal' ? audioName : null, 'letter', `${phase}-${index}-${tries}`)
+
+  // 途中保存があれば「つづきから」を聞く（第15回: 途中で抜けても最初からにならない）
+  useEffect(() => {
+    if (!profile || phase !== 'init') return
+    let alive = true
+    void (async () => {
+      const session = await getTestSession(profile.id, testKey)
+      if (!alive) return
+      if (session && session.currentIndex > 0 && session.currentIndex < session.wordIds.length) {
+        setSavedIndex(session.currentIndex)
+        setOrder(session.wordIds)
+        setResults(session.items.map((it) => ({ letter: it.wordId, correct: it.result === 'correct' })))
+        setPhase('askResume')
+        return
+      }
+      setOrder(shuffled(items.map((i) => i.letter)))
+      setPhase('running')
+    })()
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id, phase])
 
   useEffect(() => {
     setTries(0)
   }, [index])
 
-  if (!profile) return <LoadingView />
+  if (!profile || phase === 'init') return <LoadingView />
+
+  const persistSession = async (orderNow: string[], nextIndex: number, newResults: ItemResult[]) => {
+    await saveTestSession({
+      profileId: profile.id,
+      testKey,
+      kind: 'alphabet',
+      targetId: kind,
+      wordIds: orderNow,
+      currentIndex: nextIndex,
+      items: newResults.map((r) => ({ wordId: r.letter, result: r.correct ? ('correct' as const) : ('wrong' as const) })),
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+    })
+  }
 
   const finish = async (finalResults: ItemResult[]) => {
+    await deleteTestSession(profile.id, testKey)
     const correct = finalResults.filter((r) => r.correct).length
     const perfect = correct === finalResults.length
     await addTestResult({
@@ -111,6 +163,7 @@ export function AlphabetTest({ kind }: { kind: AlphabetKind }) {
         if (reward.expEvents) evoQueueRef.current.push(reward.expEvents)
         const newResults = [...results, { letter, correct: true }]
         setResults(newResults)
+        await persistSession(order, index + 1, newResults)
         setMark('correct')
         playCorrect()
         setBuddyMood('happy')
@@ -141,6 +194,7 @@ export function AlphabetTest({ kind }: { kind: AlphabetKind }) {
       await saveAlphabetProgress(p)
       const newResults = [...results, { letter, correct: false }]
       setResults(newResults)
+      await persistSession(order, index + 1, newResults)
       bumpData()
       setPhase('reveal')
     } finally {
@@ -158,16 +212,61 @@ export function AlphabetTest({ kind }: { kind: AlphabetKind }) {
     }, 950)
   }
 
+  if (phase === 'askResume') {
+    return (
+      <div className="screen">
+        <TopBar title={`${kind === 'upper' ? 'おおもじ' : 'こもじ'}テスト`} back={{ name: 'alphabet' }} />
+        <div className="center-panel">
+          <div className="card resume-card">
+            <p>
+              とちゅうまで やった きろくが あるよ（{savedIndex} / {order.length}もじ）
+            </p>
+            <div className="row gap">
+              <Button
+                onClick={() => {
+                  setIndex(savedIndex)
+                  setPhase('running')
+                }}
+              >
+                つづきから
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  void deleteTestSession(profile.id, testKey)
+                  setOrder(shuffled(items.map((i) => i.letter)))
+                  setResults([])
+                  setIndex(0)
+                  setPhase('running')
+                }}
+              >
+                さいしょから
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (phase === 'done') {
     const correct = results.filter((r) => r.correct).length
     const missed = results.filter((r) => !r.correct)
     const perfect = correct === results.length
+    const missedLetters = missed.map((r) => r.letter)
     return (
       <div className="screen">
-        <TopBar title={`${kind === 'upper' ? 'おおもじ' : 'こもじ'}テスト けっか`} back={{ name: 'alphabet' }} />
+        <TopBar
+          title={`${kind === 'upper' ? 'おおもじ' : 'こもじ'}テスト${isSubset ? '（にがてなもじ）' : ''} けっか`}
+          back={{ name: 'alphabet' }}
+        />
         <div className="result-wrap">
           <div className={`card result-main ${perfect ? 'result-perfect' : ''}`}>
-            {perfect && <div className="perfect-banner">🌟 PERFECT!　26 / 26</div>}
+            {perfect && (
+              <div className="perfect-banner">
+                🌟 PERFECT!　{results.length} / {results.length}
+              </div>
+            )}
             <BuddyCorner mood={perfect ? 'celebrate' : 'idle'} size={100} message={perfect ? 'すごーい！' : 'さいごまで できたね！'} />
             <div className="result-score">
               {results.length}もじ中 {correct}もじ かけた！
@@ -197,6 +296,16 @@ export function AlphabetTest({ kind }: { kind: AlphabetKind }) {
             <Button size="lg" variant="accent" onClick={() => navigate({ name: 'alphabet' })}>
               アルファベットへ もどる
             </Button>
+            {missed.length > 0 && (
+              <div className="row gap wrap">
+                <Button size="sm" variant="secondary" onClick={() => navigate({ name: 'alphabetLearn', kind, letters: missedLetters })}>
+                  にがてな もじだけ れんしゅう
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => navigate({ name: 'alphabetTest', kind, letters: missedLetters })}>
+                  にがてな もじだけ テスト
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -232,7 +341,10 @@ export function AlphabetTest({ kind }: { kind: AlphabetKind }) {
 
   return (
     <div className="screen">
-      <TopBar title={`${kind === 'upper' ? 'おおもじ' : 'こもじ'}テスト　${index + 1} / ${order.length}`} back={{ name: 'alphabet' }} />
+      <TopBar
+        title={`${kind === 'upper' ? 'おおもじ' : 'こもじ'}テスト${isSubset ? '（にがてなもじ）' : ''}　${index + 1} / ${order.length}`}
+        back={{ name: 'alphabet' }}
+      />
       <div className="split">
         <div className="split-left">
           <div className="card word-card word-card-big">

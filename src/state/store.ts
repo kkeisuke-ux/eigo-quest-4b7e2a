@@ -7,8 +7,8 @@ export type Route =
   | { name: 'profiles' }
   | { name: 'home' }
   | { name: 'alphabet' }
-  | { name: 'alphabetLearn'; kind: AlphabetKind; startIndex?: number }
-  | { name: 'alphabetTest'; kind: AlphabetKind }
+  | { name: 'alphabetLearn'; kind: AlphabetKind; startIndex?: number; letters?: string[] }
+  | { name: 'alphabetTest'; kind: AlphabetKind; letters?: string[] }
   | { name: 'stages' }
   | { name: 'learn'; stageId: string }
   | { name: 'stageTest'; stageId: string }

@@ -21,6 +21,16 @@ export function AlphabetHub() {
   const items = kind === 'upper' ? UPPERCASE : LOWERCASE
   const mastered = items.filter((i) => progress.get(i.letter)?.masteredAt != null).length
   const practiced = items.filter((i) => progress.get(i.letter)?.practicedAt != null).length
+  // にがてなもじ = テストで一度でも「こたえを見る」を使った（＝間違えた）が、
+  // その後まだ習得しなおしていない字（仕様2026-08-10フィードバック: 毎回26字ぜんぶは
+  // 大変すぎる → 苦手な字だけに しぼれるようにする）。練習だけした字はここに含めない
+  // （練習には失敗判定が無いため「間違えた」に当たらない）
+  const weakLetters = items
+    .filter((i) => {
+      const p = progress.get(i.letter)
+      return p != null && p.masteredAt == null && p.wrong > 0
+    })
+    .map((i) => i.letter)
 
   return (
     <div className="screen">
@@ -61,6 +71,16 @@ export function AlphabetHub() {
             テストを うける（{practiced > 0 || mastered > 0 ? 'よめる字で かけるかな？' : 'れんしゅうのあとが おすすめ'}）
           </Button>
         </div>
+        {weakLetters.length > 0 && (
+          <div className="row gap wrap alpha-actions">
+            <Button size="lg" variant="secondary" onClick={() => navigate({ name: 'alphabetLearn', kind, letters: weakLetters })}>
+              にがてな {weakLetters.length}もじだけ れんしゅう
+            </Button>
+            <Button size="lg" variant="secondary" onClick={() => navigate({ name: 'alphabetTest', kind, letters: weakLetters })}>
+              にがてな {weakLetters.length}もじだけ テスト
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )

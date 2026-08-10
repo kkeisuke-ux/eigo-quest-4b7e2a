@@ -6,7 +6,7 @@ import { rollGacha, type GachaOutcome } from '../game/logic'
 import { CharacterSprite } from '../game/sprites'
 import { useProfile } from '../state/hooks'
 import { bumpData, navigate, showToast } from '../state/store'
-import { Button, CoinBadge, LoadingView, TopBar } from '../ui/components'
+import { Button, LoadingView, TopBar } from '../ui/components'
 import { queueEvolutionFromEvents } from '../ui/EvolutionModal'
 
 type Phase = 'idle' | 'shake' | 'silhouette' | 'reveal' | 'miss' | 'dup'
@@ -84,7 +84,7 @@ export function Gacha() {
 
   return (
     <div className="screen">
-      <TopBar title="なかまガチャ" back={{ name: 'home' }} right={<CoinBadge coins={profile.coins} />} />
+      <TopBar title="なかまガチャ" back={{ name: 'home' }} />
       <div className="gacha-stage" onClick={busy ? skip : undefined}>
         {phase === 'idle' && (
           <>

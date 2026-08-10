@@ -37,9 +37,9 @@ function RouteView({ route }: { route: Route }) {
     case 'alphabet':
       return <AlphabetHub />
     case 'alphabetLearn':
-      return <AlphabetLearn kind={route.kind} startIndex={route.startIndex} />
+      return <AlphabetLearn kind={route.kind} startIndex={route.startIndex} letters={route.letters} />
     case 'alphabetTest':
-      return <AlphabetTest kind={route.kind} />
+      return <AlphabetTest kind={route.kind} letters={route.letters} />
     case 'stages':
       return <StageMap />
     case 'tests':

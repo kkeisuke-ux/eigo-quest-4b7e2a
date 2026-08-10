@@ -6,7 +6,7 @@ import { CharacterSprite } from '../game/sprites'
 import { useAsyncData } from '../state/hooks'
 import { bumpData, navigate, showToast, useAppState } from '../state/store'
 import { getProfile, listOwned, saveProfile } from '../storage/repo'
-import { Button, Card, CoinBadge, ExpBar, LoadingView, StarBadge, TopBar } from '../ui/components'
+import { Button, Card, ExpBar, LoadingView, TopBar } from '../ui/components'
 import { queueEvolutionFromEvents } from '../ui/EvolutionModal'
 
 export function Friends() {
@@ -49,16 +49,7 @@ export function Friends() {
 
   return (
     <div className="screen">
-      <TopBar
-        title="なかま"
-        back={{ name: 'home' }}
-        right={
-          <span className="row gap-sm">
-            <CoinBadge coins={profile.coins} />
-            <StarBadge stars={profile.stars} />
-          </span>
-        }
-      />
+      <TopBar title="なかま" back={{ name: 'home' }} />
       <div className="map-scroll">
         <Card className="star-shop">
           <div>
