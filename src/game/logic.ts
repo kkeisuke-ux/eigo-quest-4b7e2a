@@ -20,9 +20,9 @@ import {
 import { showToast } from '../state/store'
 
 export interface ExpGrantEvents {
-  /** 進化した段階数 */
+  /** 上がったレベル数 */
   levelsGained: number
-  /** 新しいだんかい（stage + 1） */
+  /** 新しいレベル（1〜maxLevel） */
   newLevel: number
   /** 進化した場合のみ */
   evolvedFrom: string | null
@@ -31,10 +31,32 @@ export interface ExpGrantEvents {
   speciesId: string
 }
 
-/** つぎの進化までに必要なEXP（レベル=進化段階。2026-08-08 第7回で刷新） */
-export function expToNext(stage: number): number {
-  const arr = GAME_CONFIG.levels.stageExp
-  return arr[Math.min(Math.max(stage, 0), arr.length - 1)]
+/**
+ * レベルn→n+1に必要なEXP（第20回で刷新: レベルはmaxLevelまで上がり続け、
+ * evolveAtLevelsに達したときだけ進化する）
+ */
+export function expToNextLevel(level: number): number {
+  const { levelExp, levelExpGrowth, levelExpCap } = GAME_CONFIG.levels
+  if (level - 1 < levelExp.length) return levelExp[Math.max(0, level - 1)]
+  return Math.min(levelExp[levelExp.length - 1] + (level - levelExp.length) * levelExpGrowth, levelExpCap)
+}
+
+/** そのレベルでの進化段階（stagesCountを超えない） */
+export function stageForLevel(level: number, stagesCount: number): number {
+  const reached = GAME_CONFIG.levels.evolveAtLevels.filter((l) => level >= l).length
+  return Math.min(reached, stagesCount - 1)
+}
+
+/**
+ * 旧システム（レベル=進化段階、最大3）のデータを新システムへ引き上げる。
+ * 進化済みの見た目は戻さず、レベルを進化段階に見合う最低レベルへ底上げする。
+ * 読み込み直後に必ず通すこと（logic内・画面表示とも）。
+ */
+export function normalizeOwned(owned: OwnedCharacterRecord): OwnedCharacterRecord {
+  const evolveAt = GAME_CONFIG.levels.evolveAtLevels
+  const minLevel = owned.stage > 0 ? (evolveAt[Math.min(owned.stage, evolveAt.length) - 1] ?? 1) : 1
+  if (owned.level < minLevel) owned.level = minLevel
+  return owned
 }
 
 export interface EvolutionInfo {
@@ -48,17 +70,21 @@ export interface EvolutionInfo {
   maxed: boolean
 }
 
-/** つぎの進化までの残り（スター換算つき。仕様 §49 + 2026-08-08 第7回） */
+/** つぎの進化までの残り（スター換算つき。仕様 §49 + 第20回でレベル基準に刷新） */
 export function evolutionInfo(owned: OwnedCharacterRecord): EvolutionInfo {
   const sp = getSpecies(owned.speciesId)
   if (!sp) return { expLeft: null, starsLeft: null, tease: false, maxed: false }
+  normalizeOwned(owned)
   if (owned.stage >= sp.stages.length - 1) return { expLeft: null, starsLeft: null, tease: false, maxed: true }
-  const need = expToNext(owned.stage)
-  const left = Math.max(0, need - owned.exp)
+  const nextEvolveLevel = GAME_CONFIG.levels.evolveAtLevels.find((l) => l > owned.level) ?? owned.level + 1
+  // 次の進化レベルまでに必要なEXPの合計（現レベルの進行分を差し引く）
+  let total = 0
+  for (let lv = owned.level; lv < nextEvolveLevel; lv++) total += expToNextLevel(lv)
+  const left = Math.max(0, total - owned.exp)
   return {
     expLeft: left,
     starsLeft: Math.max(1, Math.ceil(left / GAME_CONFIG.star.exp)),
-    tease: owned.exp / need >= GAME_CONFIG.levels.evolveTeaseAt,
+    tease: total > 0 && (total - left) / total >= GAME_CONFIG.levels.evolveTeaseAt,
     maxed: false,
   }
 }
@@ -66,23 +92,27 @@ export function evolutionInfo(owned: OwnedCharacterRecord): EvolutionInfo {
 export async function grantExpToOwned(profile: Profile, owned: OwnedCharacterRecord, amount: number): Promise<ExpGrantEvents> {
   const species = getSpecies(owned.speciesId)
   if (!species) throw new Error(`unknown species: ${owned.speciesId}`)
-  const maxStage = species.stages.length - 1
+  normalizeOwned(owned)
+  const { maxLevel } = GAME_CONFIG.levels
 
   const oldStage = owned.stage
+  const oldLevel = owned.level
   const oldStageName = species.stages[oldStage]?.name ?? '?'
   let exp = owned.exp + amount
-  let stage = owned.stage
-  while (stage < maxStage && exp >= expToNext(stage)) {
-    exp -= expToNext(stage)
-    stage++
+  let level = owned.level
+  while (level < maxLevel && exp >= expToNextLevel(level)) {
+    exp -= expToNextLevel(level)
+    level++
   }
-  // 最終段階ではEXPをためない（あふれは切り捨ててバー表示を満タンに）
-  if (stage >= maxStage) exp = Math.min(exp, expToNext(maxStage))
+  // レベル上限ではEXPをためない（あふれは切り捨ててバー表示を満タンに）
+  if (level >= maxLevel) exp = Math.min(exp, expToNextLevel(maxLevel))
 
+  // 進化はレベル到達で起こる。すでに進化済み（旧データ等）の見た目は戻さない
+  const stage = Math.max(oldStage, stageForLevel(level, species.stages.length))
   const stageChanged = stage !== oldStage
   owned.exp = exp
+  owned.level = level
   owned.stage = stage
-  owned.level = stage + 1
   await saveOwned(owned)
 
   let evolvedTo: string | null = null
@@ -92,11 +122,13 @@ export async function grantExpToOwned(profile: Profile, owned: OwnedCharacterRec
       await discoverDex(profile.id, owned.speciesId, s)
     }
     await addActivity(profile.id, profile.name, 'evolve', `${profile.name}の ${oldStageName}が ${evolvedTo}に しんかした！`)
+  } else if (level > oldLevel) {
+    showToast(`${species.stages[stage].name}が レベルアップ！ Lv.${level}`)
   }
 
   return {
-    levelsGained: stage - oldStage,
-    newLevel: stage + 1,
+    levelsGained: level - oldLevel,
+    newLevel: level,
     evolvedFrom: stageChanged ? oldStageName : null,
     evolvedTo,
     newStage: stageChanged ? stage : null,
@@ -226,11 +258,12 @@ export async function rollGacha(profileId: string): Promise<GachaOutcome> {
   return { outcome: 'new', profile, speciesId: sp.id, name: sp.stages[0].name, becameBuddy }
 }
 
-export async function buyStar(profileId: string): Promise<{ ok: boolean; profile?: Profile }> {
+export async function buyStars(profileId: string, count = 1): Promise<{ ok: boolean; profile?: Profile }> {
   const profile = await getProfile(profileId)
-  if (!profile || profile.coins < GAME_CONFIG.star.cost) return { ok: false }
-  const updated = await addCoins(profileId, -GAME_CONFIG.star.cost, 'スターをかった')
-  updated.stars++
+  const cost = GAME_CONFIG.star.cost * count
+  if (!profile || profile.coins < cost) return { ok: false }
+  const updated = await addCoins(profileId, -cost, count === 1 ? 'スターをかった' : `スターを${count}こかった`)
+  updated.stars += count
   await saveProfile(updated)
   return { ok: true, profile: updated }
 }

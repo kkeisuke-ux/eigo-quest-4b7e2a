@@ -1,7 +1,7 @@
 // 共通UIコンポーネント。
 import type { ReactNode } from 'react'
 import { navigate, useAppState, type Route } from '../state/store'
-import { expToNext } from '../game/logic'
+import { expToNextLevel, normalizeOwned } from '../game/logic'
 import { getSpecies } from '../data/species'
 import { CharacterSprite } from '../game/sprites'
 import { useAsyncData } from '../state/hooks'
@@ -16,6 +16,7 @@ export function StatusChips() {
     const p = await getProfile(profileId)
     if (!p) return null
     const buddy = p.buddyId != null ? ((await getOwned(p.buddyId)) ?? null) : null
+    if (buddy) normalizeOwned(buddy)
     return {
       coins: p.coins,
       stars: p.stars,
@@ -30,7 +31,7 @@ export function StatusChips() {
       {data.buddy && (
         <span className="badge buddy-chip">
           <CharacterSprite speciesId={data.buddy.speciesId} stage={data.buddy.stage} size={22} />
-          <span>だんかい{data.buddy.stage + 1}</span>
+          <span>Lv.{data.buddy.level}</span>
         </span>
       )}
     </span>
@@ -166,9 +167,9 @@ export function WordChip({ text, state = 'none', onClick }: { text: string; stat
   )
 }
 
-/** つぎの進化までのEXPバー（レベル=進化段階モデル） */
-export function ExpBar({ stage, exp }: { stage: number; exp: number }) {
-  const need = expToNext(stage)
+/** つぎのレベルまでのEXPバー（第20回: レベルはLv99まで上がり続ける） */
+export function ExpBar({ level, exp }: { level: number; exp: number }) {
+  const need = expToNextLevel(level)
   const pct = Math.min(100, Math.round((exp / need) * 100))
   return (
     <div className="expbar" title={`${exp}/${need}`}>

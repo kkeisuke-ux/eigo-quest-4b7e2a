@@ -1,7 +1,7 @@
 // ホーム画面（仕様 §58）: 今日の学習・復習・大文字/小文字進捗・覚えた単語数・仲間・コイン。
 import { getSpecies } from '../data/species'
 import { playableLevels, termClearLevelLabel, termId, termTestTitle, type WordStageDef } from '../data/words'
-import { evolutionInfo } from '../game/logic'
+import { evolutionInfo, normalizeOwned } from '../game/logic'
 import { CharacterSprite } from '../game/sprites'
 import { useAsyncData } from '../state/hooks'
 import { navigate, useAppState } from '../state/store'
@@ -30,6 +30,7 @@ export function Home() {
       alphabetMasteryCounts(profileId),
     ])
     const buddy = profile.buddyId != null ? (owned.find((o) => o.id === profile.buddyId) ?? null) : null
+    if (buddy) normalizeOwned(buddy)
     const mastered = progressList.filter((p) => p.masteredAt != null).length
     const practicedSet = new Set(progressList.filter((p) => p.practicedAt != null).map((p) => p.wordId))
     const stagePerfectSet = new Set(
@@ -181,15 +182,13 @@ export function Home() {
                 <CharacterSprite speciesId={buddy.speciesId} stage={buddy.stage} size={140} />
                 <p className="buddy-name">{buddySpecies.stages[buddy.stage].name}</p>
                 <p className="buddy-level">
-                  だんかい {buddy.stage + 1} / {buddySpecies.stages.length}
+                  Lv.{buddy.level}　（しんか {buddy.stage + 1} / {buddySpecies.stages.length}）
                 </p>
+                <ExpBar level={buddy.level} exp={buddy.exp} />
                 {buddyInfo && !buddyInfo.maxed && (
-                  <>
-                    <ExpBar stage={buddy.stage} exp={buddy.exp} />
-                    <p className="tile-sub">
-                      しんかまで スター あと<b>{buddyInfo.starsLeft}こ</b>
-                    </p>
-                  </>
+                  <p className="tile-sub">
+                    しんかまで スター あと<b>{buddyInfo.starsLeft}こ</b>
+                  </p>
                 )}
                 {buddyInfo?.maxed && <p className="friend-maxed">🌟 さいごまで しんかした！</p>}
                 {buddyInfo?.tease && <p className="buddy-tease">もうすぐ なにかが おこりそう……</p>}

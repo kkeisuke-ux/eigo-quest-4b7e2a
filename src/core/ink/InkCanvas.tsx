@@ -71,6 +71,8 @@ export function InkCanvas(props: Props) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const strokesRef = useRef<InkStroke[]>([])
+  /** clear()で消した直前の内容（undo()での復元用。新しい画を書いたら破棄。第20回） */
+  const clearedRef = useRef<InkStroke[] | null>(null)
   const currentRef = useRef<InkStroke | null>(null)
   const activeIdRef = useRef<number | null>(null)
   const rectRef = useRef<DOMRect | null>(null)
@@ -201,6 +203,8 @@ export function InkCanvas(props: Props) {
     if (!inkRef) return
     inkRef.current = {
       clear() {
+        // 「ぜんぶけす」を押しまちがえても undo() で戻せるように退避する（第20回）
+        if (strokesRef.current.length > 0) clearedRef.current = strokesRef.current
         strokesRef.current = []
         currentRef.current = null
         activeIdRef.current = null
@@ -211,6 +215,16 @@ export function InkCanvas(props: Props) {
         flushDiag()
       },
       undo() {
+        // 空のときは、直前のclear()があればその内容を丸ごと復元する
+        if (strokesRef.current.length === 0 && clearedRef.current) {
+          strokesRef.current = clearedRef.current
+          clearedRef.current = null
+          diagRef.current.strokeCount = strokesRef.current.length
+          redrawAll()
+          cbRef.current.onInkChange?.(strokesRef.current)
+          flushDiag()
+          return null
+        }
         const popped = strokesRef.current.pop() ?? null
         strokesRef.current = [...strokesRef.current]
         diagRef.current.strokeCount = strokesRef.current.length
@@ -224,6 +238,7 @@ export function InkCanvas(props: Props) {
       },
       setStrokes(strokes: InkStroke[]) {
         strokesRef.current = [...strokes]
+        clearedRef.current = null
         currentRef.current = null
         activeIdRef.current = null
         nextIdRef.current = Math.max(0, ...strokes.map((s) => s.id)) + 1
@@ -368,6 +383,7 @@ export function InkCanvas(props: Props) {
       }
     }
     strokesRef.current = [...strokesRef.current, cur]
+    clearedRef.current = null // 新しく書き始めたら「けす前」への復元はしない
     d.strokeCount = strokesRef.current.length
     cbRef.current.onInkChange?.(strokesRef.current)
     cbRef.current.onStrokeEnd?.(cur, strokesRef.current)

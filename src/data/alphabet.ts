@@ -5,7 +5,24 @@
 //   （複数の流儀があるため、テストでは書き順を問わず字形のみ判定する。仕様 §8）
 // - audio.name は文字名（"A"＝エイ）。将来フォニックス音を追加できる構造（仕様 §7）。
 
+/**
+ * 表示・判定に使う4線の位置（第20回で等間隔に変更）。
+ * 旧配置は下段（base〜descender）が18しかなく、g/j/p/q/yの尻尾が書きづらかった。
+ * 3段とも27の等間隔にする。
+ */
 export const GUIDE_LINES = {
+  top: 13,
+  mid: 40,
+  base: 67,
+  descender: 94,
+} as const
+
+/**
+ * この下のALPHABETの文字パスが描かれている座標系の4線（旧配置）。
+ * refdata.tsが読み込み時にGUIDE_LINESへ区分線形リマップするため、
+ * 文字パスのデータ自体は旧座標系のまま変更しない。
+ */
+export const DATA_GUIDE_LINES = {
   top: 14,
   mid: 42,
   base: 76,

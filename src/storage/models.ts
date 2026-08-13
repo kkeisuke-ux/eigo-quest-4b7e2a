@@ -206,6 +206,8 @@ export interface DiaryEntryRecord {
   /** 英文の手書きストローク（見返し用） */
   textStrokes: StoredStroke[]
   textBoxWidth: number
+  /** 英文エリアの罫線の行数（第20回で3→5に拡張。無い旧データは3行として復元する） */
+  textRows?: number
   /** 添削後の自然な英文（チェック未実施なら null）。原文は置き換えない */
   correctedText: string | null
   /** 添削コメント（「こう書くともっと自然だよ」の説明） */

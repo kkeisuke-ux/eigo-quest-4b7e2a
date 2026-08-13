@@ -1,7 +1,7 @@
 // なかま一覧・育成（仕様 §23, §24）。スター購入と使用、バディ切り替え。
 import { GAME_CONFIG } from '../config/gameConfig'
 import { getSpecies } from '../data/species'
-import { buyStar, evolutionInfo, useStar } from '../game/logic'
+import { buyStars, evolutionInfo, normalizeOwned, useStar } from '../game/logic'
 import { CharacterSprite } from '../game/sprites'
 import { useAsyncData } from '../state/hooks'
 import { bumpData, navigate, showToast, useAppState } from '../state/store'
@@ -16,6 +16,7 @@ export function Friends() {
     const profile = await getProfile(profileId)
     if (!profile) return null
     const owned = await listOwned(profileId)
+    owned.forEach(normalizeOwned)
     owned.sort((a, b) => a.obtainedAt - b.obtainedAt)
     return { profile, owned }
   }, [profileId])
@@ -30,10 +31,10 @@ export function Friends() {
     showToast('いっしょに べんきょうする なかまを かえたよ')
   }
 
-  const onBuyStar = async () => {
-    const res = await buyStar(profile.id)
+  const onBuyStars = async (count: number) => {
+    const res = await buyStars(profile.id, count)
     bumpData()
-    showToast(res.ok ? 'スターを かった！' : 'コインが たりないよ')
+    showToast(res.ok ? (count === 1 ? 'スターを かった！' : `スターを ${count}こ かった！`) : 'コインが たりないよ')
   }
 
   const onUseStar = async (ownedId: number) => {
@@ -56,9 +57,14 @@ export function Friends() {
             <h3>スター</h3>
             <p className="tile-sub">スター1つで なかまの EXPが +{GAME_CONFIG.star.exp}。コインは ためておいても いいよ。</p>
           </div>
-          <Button onClick={() => void onBuyStar()} disabled={profile.coins < GAME_CONFIG.star.cost}>
-            スターを かう（{GAME_CONFIG.star.cost}コイン）
-          </Button>
+          <div className="row gap-sm wrap">
+            <Button onClick={() => void onBuyStars(1)} disabled={profile.coins < GAME_CONFIG.star.cost}>
+              1こ かう（{GAME_CONFIG.star.cost}コイン）
+            </Button>
+            <Button variant="secondary" onClick={() => void onBuyStars(5)} disabled={profile.coins < GAME_CONFIG.star.cost * 5}>
+              5こ かう（{GAME_CONFIG.star.cost * 5}コイン）
+            </Button>
+          </div>
         </Card>
         {owned.length === 0 ? (
           <Card>
@@ -76,14 +82,16 @@ export function Friends() {
                 <Card key={o.id} className={`friend-card ${isBuddy ? 'friend-buddy' : ''}`}>
                   <CharacterSprite speciesId={o.speciesId} stage={o.stage} size={110} />
                   <div className="friend-info">
-                    <p className="friend-name">{sp.stages[o.stage].name}</p>
+                    <p className="friend-name">
+                      {sp.stages[o.stage].name}　<b className="friend-level">Lv.{o.level}</b>
+                    </p>
                     <p className="friend-line">
-                      {sp.lineName}　だんかい {o.stage + 1} / {sp.stages.length}
+                      {sp.lineName}　しんか {o.stage + 1} / {sp.stages.length}
                     </p>
                     <p className="friend-desc">{sp.stages[o.stage].desc}</p>
-                    {!info.maxed && <ExpBar stage={o.stage} exp={o.exp} />}
+                    <ExpBar level={o.level} exp={o.exp} />
                     {info.maxed ? (
-                      <p className="friend-maxed">🌟 さいごまで しんかした！</p>
+                      <p className="friend-maxed">🌟 さいごまで しんかした！（レベルは Lv.{GAME_CONFIG.levels.maxLevel}まで あがるよ）</p>
                     ) : (
                       <p className="friend-next">
                         つぎの しんかまで EXP {info.expLeft}（スター あと<b>{info.starsLeft}こ</b>）

@@ -24,8 +24,10 @@ import { queueEvolutionFromEvents } from '../ui/EvolutionModal'
 
 const PEN_COLORS = ['#233047', '#e0645f', '#e79a2e', '#f2c33c', '#3f9d63', '#4a67d8', '#8a5bd6', '#b57a38']
 const DRAW_ASPECT = 0.58
-const TEXT_ROWS = 3
-const TEXT_ASPECT = 0.42
+/** 英文エリアの行数（第20回で3→5）。旧データはtextRows未保存=3行で開く（字と罫線がズレないように） */
+const TEXT_ROWS_DEFAULT = 5
+/** 1行あたりの高さ/幅比（3行時代の0.42/3を維持） */
+const TEXT_ROW_ASPECT = 0.14
 
 type DrawTool = 'pen' | 'brush' | 'eraser'
 
@@ -64,6 +66,7 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
   const [helperResults, setHelperResults] = useState<SentenceItem[] | null>(null)
   const [listening, setListening] = useState(false)
   const recognizerRef = useRef<SpeechRecognitionLike | null>(null)
+  const listenTimeoutRef = useRef<number | null>(null)
   const restoreRef = useRef(false)
   const speechAvailable = getSpeechRecognition() != null
 
@@ -101,9 +104,17 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
     return () => window.clearTimeout(timer)
   }, [loaded, existing])
 
-  useEffect(() => () => recognizerRef.current?.stop(), [])
+  useEffect(
+    () => () => {
+      if (listenTimeoutRef.current != null) window.clearTimeout(listenTimeoutRef.current)
+      recognizerRef.current?.stop()
+    },
+    []
+  )
 
   if (!profile || !loaded) return <LoadingView />
+
+  const textRows = existing ? (existing.textRows ?? 3) : TEXT_ROWS_DEFAULT
 
   const searchHelper = (q?: string) => {
     const query = (q ?? helperQuery).trim()
@@ -111,7 +122,27 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
     setHelperResults(searchSentences(query))
   }
 
+  const stopListening = () => {
+    if (listenTimeoutRef.current != null) {
+      window.clearTimeout(listenTimeoutRef.current)
+      listenTimeoutRef.current = null
+    }
+    try {
+      recognizerRef.current?.stop()
+    } catch {
+      // stop失敗は無視（すでに止まっている）
+    }
+    setListening(false)
+  }
+
+  // 第20回: 「押すと入力中のまま進まなくなる」対策。
+  // 環境によっては認識APIがあるのにonresult/onendが一切来ないことがあるため、
+  // ①もう一度タップでやめられる ②12秒で自動停止 ③エラー時は案内を出す
   const startListening = () => {
+    if (listening) {
+      stopListening()
+      return
+    }
     const SR = getSpeechRecognition()
     if (!SR) return
     try {
@@ -126,12 +157,19 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
           setHelperResults(searchSentences(transcript))
         }
       }
-      rec.onend = () => setListening(false)
-      rec.onerror = () => setListening(false)
+      rec.onend = () => stopListening()
+      rec.onerror = () => {
+        stopListening()
+        showToast('おんせいが うまく きけなかったよ。文字で いれてもいいよ')
+      }
       setListening(true)
       rec.start()
+      listenTimeoutRef.current = window.setTimeout(() => {
+        stopListening()
+        showToast('こえが きこえなかったよ。もういちど おすか、文字で いれてね')
+      }, 12000)
     } catch {
-      setListening(false)
+      stopListening()
       showToast('おんせいにゅうりょくが つかえませんでした。文字で いれてね')
     }
   }
@@ -147,6 +185,7 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
       originalText: '',
       textStrokes: (txt?.getStrokes() ?? []).map((s) => toStored(s, 64)),
       textBoxWidth: txt?.getSize() ?? 0,
+      textRows,
       correctedText: null,
       correctionNotes: [],
       createdAt: existing?.createdAt ?? Date.now(),
@@ -239,7 +278,7 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
         {/* 第13回: 文字を書くところを絵のすぐ下に、れいぶん検索はその下に */}
         <Card className="diary-text-card">
           <div className="diary-toolbar">
-            <span className="diary-tool-label">きょうの えいご（1〜3文・すきに かこう）</span>
+            <span className="diary-tool-label">きょうの えいご（すきに かこう）</span>
             <button
               className={`tool-btn ${textEraser ? 'tool-btn-active' : ''}`}
               onClick={() => setTextEraser(!textEraser)}
@@ -255,12 +294,12 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
           </div>
           <InkCanvas
             inkRef={textRef}
-            aspectRatio={TEXT_ASPECT}
+            aspectRatio={TEXT_ROW_ASPECT * textRows}
             penColor="#233047"
             baseWidth={3.6}
             penTool={textEraser ? 'eraser' : 'pen'}
             allowTouchInk={getAppFlags().allowTouchInk}
-            guide={<TextRuleLines rows={TEXT_ROWS} className="rule-svg" />}
+            guide={<TextRuleLines rows={textRows} className="rule-svg" />}
             className="diary-canvas diary-text-canvas"
           />
         </Card>
@@ -281,10 +320,9 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
               <button
                 className={`tool-btn ${listening ? 'tool-btn-active' : ''}`}
                 onClick={startListening}
-                disabled={listening}
-                title="おんせいで いう"
+                title={listening ? 'タップで やめる' : 'おんせいで いう'}
               >
-                🎤{listening ? 'きいてるよ…' : ''}
+                🎤{listening ? 'きいてるよ…（タップで やめる）' : ''}
               </button>
             )}
             <Button size="sm" onClick={() => searchHelper()} disabled={!helperQuery.trim()}>
