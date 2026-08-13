@@ -2,8 +2,8 @@
 // 発音音声ファイルの生成（第12回: TTSの品質が端末依存で使いものに
 // ならないため、クリアな女性声をアプリに内蔵する）。
 //   node scripts/gen-voice.mjs
-// - Piper TTS（完全ローカル・MITライセンス・en_US-amy-medium=女性声、
-//   Zのみen_US-lessac-medium）でアルファベット26字・全単語・全例文の音声を合成
+// - Piper TTS（完全ローカル・MITライセンス・en_US-amy-medium=女性声）で
+//   アルファベット26字・全単語・全例文の音声を合成
 // - ffmpegでmp3化して public/audio/voice/<slug>.mp3 に配置
 // - 生成した一覧を src/data/voiceManifest.json に書き出す（実行時の存在判定用）
 // - 第16回: **増分生成**。既にmp3があるキーは再合成しない（Piperの合成は
@@ -24,14 +24,17 @@ const ROOT = path.join(__dirname, '..')
 const TOOLS_SRC = path.join(ROOT, '..', '_tools', 'piper')
 const TOOLS = 'C:\\Users\\komura\\AppData\\Local\\Temp\\claude\\piper-tts'
 const PIPER = path.join(TOOLS, 'piper', 'piper.exe')
-// 既定の声（女性・クリア）。第16回: Zだけは amy だと語頭の /z/ が /s/ に無声化してしまい
-// 何度テキストを変えても直らなかったため、その1字だけ lessac（同じく女性・近い声質。
-// F0実測: amy≈208Hz / lessac≈191Hz）に差し替える。MODEL_OVERRIDEに無い項目は既定のamy。
+// 既定の声（女性・クリア）。全キーamyで統一。
+// 第18回: 第16回まではZのみlessac（別話者）だったが「Zだけ声が違う」との指摘で廃止。
+// amyは単独発話"zee"/"Z."だと語頭の/z/が確実に無声化する（Whisper検証40/40で"see"化）が、
+// 連続発話「zee, zee, zee, zee.」(length_scale 1.15)の文末では正しく有声化することが
+// 分かったため、現在のz.mp3はそのキャリアフレーズから文末の"zee"を切り出して
+// 音量調整した**手動生成品**。z.mp3を削除してこのスクリプトで再生成すると
+// 単独発話の無声化問題が再発するので、z.mp3は削除しないこと。
 const MODELS = {
   amy: path.join(TOOLS, 'en_US-amy-medium.onnx'),
-  lessac: path.join(TOOLS, 'en_US-lessac-medium.onnx'),
 }
-const MODEL_OVERRIDE = { z: 'lessac' }
+const MODEL_OVERRIDE = {}
 const OUT_DIR = path.join(ROOT, 'public', 'audio', 'voice')
 const TMP_DIR = path.join(TOOLS, 'tmp-wav')
 const MANIFEST = path.join(ROOT, 'src', 'data', 'voiceManifest.json')
@@ -49,11 +52,6 @@ if (!fs.existsSync(PIPER) || !fs.existsSync(MODELS.amy)) {
     fs.copyFileSync(path.join(TOOLS_SRC, f), path.join(TOOLS, f))
   }
 }
-if (!fs.existsSync(MODELS.lessac)) {
-  console.error('lessacモデルが見つかりません（Zの発音修正に必要）:', MODELS.lessac)
-  process.exit(1)
-}
-
 // 実行時（tts.ts）と同じスラッグ規則にすること
 const slug = (text) =>
   text
@@ -71,8 +69,8 @@ const items = new Map() // slug -> 読み上げテキスト
 // （特にA="ay"）が単独だと間投詞"aye"（＝はい、/aɪ/）に化けて別の音になってしまい
 // 直らなかった。**大文字1文字+ピリオド**（"A."）が最も安定して文字名として読まれる
 // ことが判明（Whisper転写で26字中22字が完全一致、旧方式の20字より良好）。
-// Q("cue")・T("tee")は元のスペルの方が良好だったため維持。Zはamyだと"zee"と
-// 綴っても語頭の/z/が/s/に無声化する癖があり、その1字だけlessac音声を使う。
+// Q("cue")・T("tee")は元のスペルの方が良好だったため維持。Zは手動生成品
+// （冒頭のコメント参照。z.mp3がある限り増分生成で温存され、ここの'zee'は使われない）。
 const LETTER_NAMES = {
   q: 'cue', t: 'tee', z: 'zee',
 }

@@ -577,8 +577,18 @@ function tryStartFileBgm(scene: BgmScene): boolean {
       if (getAppFlags().bgmOn) startSynthBgm()
     }
   })
+  // 第18回: 起動直後（ユーザー操作の外）のplay()は自動再生ポリシーでrejectされる。
+  // ここで握りつぶしたまま「再生中」扱いにするとstartBgm()が以後早期リターンし、
+  // 音ボタンをオフ→オンするまで無音のままになる（第17回の修正でも残っていた穴）。
+  // 失敗したら状態を戻し、次のユーザー操作のsyncBgm()で再試行できるようにする。
   const p = el.play()
-  if (p) p.catch(() => undefined)
+  if (p)
+    p.catch(() => {
+      if (fileBgm?.el === el) {
+        stopFileBgm()
+        playingScene = null
+      }
+    })
   fileBgm = { scene, el, node }
   playingScene = scene
   return true
@@ -587,7 +597,15 @@ function tryStartFileBgm(scene: BgmScene): boolean {
 export function startBgm() {
   const c = ac()
   if (!c) return
-  if (playingScene === currentScene && (bgmTimer != null || fileBgm != null)) return
+  if (playingScene === currentScene && (bgmTimer != null || fileBgm != null)) {
+    // 自動再生ブロックで一時停止のまま残っている場合はここで再生を再試行する
+    // （catchによる状態リセットとのタイミング競合に備えた保険。第18回）
+    if (fileBgm && fileBgm.el.paused) {
+      const p = fileBgm.el.play()
+      if (p) p.catch(() => undefined)
+    }
+    return
+  }
   stopBgm()
   if (!tryStartFileBgm(currentScene)) startSynthBgm()
 }
