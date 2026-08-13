@@ -2503,20 +2503,19 @@ body {
 .word-pad-row {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  /* 行分けはWordPadが文字数から均等に決める（第19回）。CSS側で折り返すと
+     丸め誤差1pxで行が崩れる（4行化など）ため折り返さない */
+  flex-wrap: nowrap;
   justify-content: center;
 }
 
+/* 一辺はWordPadが文字数・幅・高さから計算して --wb で渡す（第19回）。
+   固定サイズにすることで、折り返しても全ボックスが同じ大きさになる */
 .word-box {
-  flex: 1 1 0;
-  min-width: 64px;
-  max-width: 128px;
+  flex: 0 0 var(--wb, 120px);
+  width: var(--wb, 120px);
   position: relative;
   border-radius: 12px;
-}
-
-.word-pad-row-many .word-box {
-  min-width: 56px;
 }
 
 .word-box-next::after {
@@ -2977,13 +2976,6 @@ body {
   font-family: 'Comic Sans MS', 'Chalkboard SE', 'Segoe Print', sans-serif;
 }
 
-/* 縦向きでもボックス列が収まるように */
-@media (orientation: portrait) {
-  .word-box {
-    min-width: 52px;
-  }
-}
-
 /* ---------- コイン獲得の演出（2026-08-08フィードバック） ---------- */
 .coinfx-layer {
   position: fixed;
@@ -3066,22 +3058,9 @@ body {
   max-width: 100%;
 }
 
-.word-box {
-  max-width: 215px;
-}
-
-.word-pad-row-many .word-box {
-  min-width: 56px;
-  max-width: 130px;
-}
-
 @media (orientation: portrait) {
   .word-pad {
     width: 94vw;
-  }
-
-  .word-box {
-    max-width: 180px;
   }
 }
 

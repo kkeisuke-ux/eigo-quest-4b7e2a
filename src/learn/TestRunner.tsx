@@ -81,6 +81,10 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
   const [buddyMsg, setBuddyMsg] = useState<string | undefined>(undefined)
   const [savedSession, setSavedSession] = useState<TestSessionRecord | null>(null)
   const [revealDoneOnce, setRevealDoneOnce] = useState(false)
+  // 「こたえを見る」後のなぞりでも、×の文字だけ書き直せるようにする（第19回）
+  const [revealWrong, setRevealWrong] = useState<{ msg: string; marks: (boolean | null)[] | null } | null>(null)
+  const [revealRetrySeq, setRevealRetrySeq] = useState(0)
+  const [revealLocked, setRevealLocked] = useState(false)
   const earnedRef = useRef(0)
   const itemsRef = useRef<TestItemRecord[]>([])
   const startMasteredRef = useRef<number | null>(null)
@@ -349,6 +353,9 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
       bumpData()
       setWrong(null)
       setRevealDoneOnce(false)
+      setRevealWrong(null)
+      setRevealRetrySeq(0)
+      setRevealLocked(false)
       setPhase('reveal') // 答えを見てから次へ（なぞりは任意。仕様 §21）
     } finally {
       busyRef.current = false
@@ -356,6 +363,8 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
   }
 
   const revealNext = () => {
+    cancelAutoRetry()
+    setRevealWrong(null)
     setPhase('running')
     advance(itemsRef.current)
   }
@@ -497,6 +506,11 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
         <div className="split">
           <div className="split-left">
             <WordCard wordId={wordId} showEn showJa showIllustration showSpeak big />
+            {revealWrong && (
+              <div className="feedback fb-wrong">
+                <p className="feedback-soft">{revealWrong.msg}</p>
+              </div>
+            )}
             <BuddyCorner mood="idle" message="いっしょに おぼえよう" />
             <div className="row gap">
               <Button variant="secondary" onClick={revealNext}>
@@ -510,13 +524,35 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
               ghost
               caseInsensitive
               resetKey={`reveal-${index}`}
+              retryToken={revealRetrySeq}
+              perLetterMarks={revealWrong?.marks ?? null}
+              disabled={revealDoneOnce || revealLocked}
               onJudged={(res) => {
                 if (res.correct) {
                   playCorrect()
+                  setRevealWrong(null)
                   setRevealDoneOnce(true)
                   window.setTimeout(revealNext, 950)
                 } else {
+                  // なぞりが認識されなかった時も×を見せて、×の文字だけ消して
+                  // なぞりなおせるようにする（第19回。以前はエラー音だけ鳴って
+                  // パッドがロックされ「なぞらずにつぎへ」しか押せなかった）
                   playWrong()
+                  const wrongCount = res.letters.filter((l) => !l.correct).length
+                  setRevealWrong({
+                    msg: res.hasEmptyBox
+                      ? 'まだ かいていない マスがあるよ。つづきを かこう'
+                      : `おしい！ ×の ${wrongCount}もじを なぞりなおそう`,
+                    marks: res.letters.map((l) => l.correct),
+                  })
+                  setRevealLocked(true)
+                  cancelAutoRetry()
+                  autoRetryRef.current = window.setTimeout(() => {
+                    setRevealWrong((w) => (w ? { ...w, marks: null } : w))
+                    setRevealRetrySeq((s) => s + 1) // ×だった文字のボックスだけ消える
+                    setRevealLocked(false)
+                    if (word) void speakWord(word.en)
+                  }, 1600)
                 }
               }}
               overlay={revealDoneOnce ? <JudgeMark kind="correct" /> : null}
