@@ -2,21 +2,29 @@
 // 大文字・小文字それぞれの26文字グリッドと習得状況、なぞり練習・テストへの入口。
 import { useState } from 'react'
 import { UPPERCASE, LOWERCASE } from '../data/alphabet'
-import { useProfile, useAsyncData } from '../state/hooks'
+import { useProfile, useAsyncData, useRememberAlphabetKind } from '../state/hooks'
 import { navigate, type AlphabetKind } from '../state/store'
-import { listAlphabetProgress } from '../storage/repo'
+import { getSetting, listAlphabetProgress } from '../storage/repo'
 import { Button, LoadingView, SectionTitle, TopBar } from '../ui/components'
 
 export function AlphabetHub() {
   const profile = useProfile()
-  const [kind, setKind] = useState<AlphabetKind>('upper')
-  const { data: progress } = useAsyncData(async () => {
+  const [kindOverride, setKind] = useState<AlphabetKind | null>(null)
+  const { data } = useAsyncData(async () => {
     if (!profile) return null
-    const all = await listAlphabetProgress(profile.id)
-    return new Map(all.map((p) => [p.letter, p]))
+    const [all, savedKind] = await Promise.all([
+      listAlphabetProgress(profile.id),
+      // 第21回追補: 最後に見ていたタブ（おおもじ/こもじ）を覚えておく
+      getSetting<AlphabetKind>(`alphabetKind:${profile.id}`),
+    ])
+    return { progress: new Map(all.map((p) => [p.letter, p])), savedKind: savedKind ?? null }
   }, [profile?.id])
 
-  if (!profile || !progress) return <LoadingView />
+  const kind: AlphabetKind = kindOverride ?? data?.savedKind ?? 'upper'
+  useRememberAlphabetKind(data ? kind : null)
+
+  if (!profile || !data) return <LoadingView />
+  const progress = data.progress
 
   const items = kind === 'upper' ? UPPERCASE : LOWERCASE
   const mastered = items.filter((i) => progress.get(i.letter)?.masteredAt != null).length

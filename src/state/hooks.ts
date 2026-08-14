@@ -1,7 +1,7 @@
 // データ取得用の共通フック。
 import { useCallback, useEffect, useState } from 'react'
 import { useAppState } from './store'
-import { getProfile } from '../storage/repo'
+import { getProfile, putSetting } from '../storage/repo'
 import type { Profile } from '../storage/models'
 
 export interface AsyncData<T> {
@@ -47,4 +47,16 @@ export function useProfile(): Profile | null {
     [profileId]
   )
   return data
+}
+
+/**
+ * 最後に見ていたアルファベットのタブ（おおもじ/こもじ）を記憶する（第21回追補）。
+ * こもじの練習から戻るとハブが「おおもじ」タブに戻ってしまう問題の対策。
+ * nullを渡している間は記憶しない（読み込み前の既定値で上書きしないため）。
+ */
+export function useRememberAlphabetKind(kind: 'upper' | 'lower' | null | undefined): void {
+  const profileId = useAppState((s) => s.profileId)
+  useEffect(() => {
+    if (profileId && kind) void putSetting(`alphabetKind:${profileId}`, kind)
+  }, [profileId, kind])
 }

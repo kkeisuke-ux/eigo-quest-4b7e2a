@@ -11,7 +11,7 @@ import { UPPERCASE, LOWERCASE } from '../data/alphabet'
 import { awardStudy, type ExpGrantEvents } from '../game/logic'
 import { playCorrect, playPerfect } from '../audio/sound'
 import { useAutoSpeak } from '../audio/useSpeech'
-import { useProfile } from '../state/hooks'
+import { useProfile, useRememberAlphabetKind } from '../state/hooks'
 import { bumpData, navigate, type AlphabetKind } from '../state/store'
 import { addActivity, getAlphabetProgress, saveAlphabetProgress } from '../storage/repo'
 import type { InkStroke } from '../core/ink/types'
@@ -48,6 +48,7 @@ export function AlphabetLearn({
   letters?: string[]
 }) {
   const profile = useProfile()
+  useRememberAlphabetKind(kind)
   const allItems = kind === 'upper' ? UPPERCASE : LOWERCASE
   const isSubset = !!letters && letters.length > 0
   const items = isSubset ? allItems.filter((i) => letters!.includes(i.letter)) : allItems

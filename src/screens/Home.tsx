@@ -23,13 +23,14 @@ export function Home() {
     if (!profileId) return null
     const profile = await getProfile(profileId)
     if (!profile) return null
-    const [unknown, progressList, owned, results, alpha, savedLevelId] = await Promise.all([
+    const [unknown, progressList, owned, results, alpha, savedLevelId, savedAlphaKind] = await Promise.all([
       listUnknownWords(profileId),
       listWordProgress(profileId),
       listOwned(profileId),
       listTestResults(profileId),
       alphabetMasteryCounts(profileId),
       getSetting<string>(`stageMapLevel:${profileId}`),
+      getSetting<'upper' | 'lower'>(`alphabetKind:${profileId}`),
     ])
     const buddy = profile.buddyId != null ? (owned.find((o) => o.id === profile.buddyId) ?? null) : null
     if (buddy) normalizeOwned(buddy)
@@ -67,7 +68,12 @@ export function Home() {
       }
     }
     const alphabetDone = alpha.upper + alpha.lower >= 40
+    // 第21回追補: おすすめするアルファベットのタブも「最後に練習していた方」を優先
+    // （こもじ練習中の子に「おおもじをれんしゅうしよう」と言わない）
+    const alphaKind: 'upper' | 'lower' =
+      alpha.upper < 26 && alpha.lower < 26 ? (savedAlphaKind ?? 'upper') : alpha.upper < 26 ? 'upper' : 'lower'
     return {
+      alphaKind,
       profile,
       unknown,
       mastered,
@@ -84,13 +90,13 @@ export function Home() {
   }, [profileId])
 
   if (!data) return <LoadingView />
-  const { profile, unknown, mastered, buddy, alpha, totalPlayable, alphabetDone, nextPractice, nextStageTest, nextTerm, termLevel } = data
+  const { profile, unknown, mastered, buddy, alpha, alphaKind, totalPlayable, alphabetDone, nextPractice, nextStageTest, nextTerm, termLevel } = data
 
-  const recommend = !alphabetDone && alpha.upper < 26
-    ? { text: `アルファベットの おおもじを れんしゅうしよう（いま ${alpha.upper}/26）`, route: { name: 'alphabet' } as const }
-    : !alphabetDone && alpha.lower < 26
+  const recommend = !alphabetDone && (alpha.upper < 26 || alpha.lower < 26)
+    ? alphaKind === 'lower'
       ? { text: `アルファベットの こもじを れんしゅうしよう（いま ${alpha.lower}/26）`, route: { name: 'alphabet' } as const }
-      : nextPractice
+      : { text: `アルファベットの おおもじを れんしゅうしよう（いま ${alpha.upper}/26）`, route: { name: 'alphabet' } as const }
+    : nextPractice
         ? { text: `たんご「${nextPractice.label}」の れんしゅうを すすめよう`, route: { name: 'learn', stageId: nextPractice.id } as const }
         : nextStageTest
           ? { text: `「${nextStageTest.label}」の ５もんテストで ぜんもんせいかいを めざそう！`, route: { name: 'stageTest', stageId: nextStageTest.id } as const }
