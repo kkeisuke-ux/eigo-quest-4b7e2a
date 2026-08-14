@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { LEVELS, getWord, playableLevels, termLabel } from '../data/words'
 import { useAsyncData } from '../state/hooks'
 import { navigate, useAppState } from '../state/store'
-import { getProfile, listTestResults, listUnknownWords, listWordProgress } from '../storage/repo'
+import { getProfile, getSetting, listTestResults, listUnknownWords, listWordProgress, putSetting } from '../storage/repo'
 import { Button, Card, LoadingView, SectionTitle, TopBar } from '../ui/components'
 
 type ChipState = 'none' | 'practiced' | 'mastered' | 'unknown'
@@ -16,10 +16,13 @@ export function StageMap() {
     if (!profileId) return null
     const profile = await getProfile(profileId)
     if (!profile) return null
-    const [progressList, unknown, results] = await Promise.all([
+    const [progressList, unknown, results, savedLevelId] = await Promise.all([
       listWordProgress(profileId),
       listUnknownWords(profileId),
       listTestResults(profileId),
+      // 第21回: 最後に見ていたレベルタブを覚えておく（中3の練習から「もどる」で
+      // 一覧に戻ったとき「ようじ」タブへ戻ってしまい、続きへ行きづらかった）
+      getSetting<string>(`stageMapLevel:${profileId}`),
     ])
     const stagePerfect = new Map<string, number>()
     for (const r of results) {
@@ -32,6 +35,7 @@ export function StageMap() {
       stagePerfect,
       progressMap: new Map(progressList.map((p) => [p.wordId, p])),
       unknownSet: new Set(unknown.map((u) => u.wordId)),
+      savedLevelId: savedLevelId ?? null,
     }
   }, [profileId])
 
@@ -39,7 +43,7 @@ export function StageMap() {
   const { progressMap, unknownSet, stagePerfect } = data
 
   const levels = playableLevels()
-  const activeLevel = levels.find((lv) => lv.id === levelId) ?? levels[0]
+  const activeLevel = levels.find((lv) => lv.id === (levelId ?? data.savedLevelId)) ?? levels[0]
 
   const chipState = (wordId: string): ChipState => {
     if (unknownSet.has(wordId)) return 'unknown'
@@ -61,7 +65,10 @@ export function StageMap() {
               size="sm"
               variant={lv.id === activeLevel?.id ? 'primary' : 'secondary'}
               disabled={lv.terms.length === 0}
-              onClick={() => setLevelId(lv.id)}
+              onClick={() => {
+                setLevelId(lv.id)
+                if (profileId) void putSetting(`stageMapLevel:${profileId}`, lv.id)
+              }}
             >
               {lv.label}
               {lv.terms.length === 0 ? '（じゅんびちゅう）' : ''}

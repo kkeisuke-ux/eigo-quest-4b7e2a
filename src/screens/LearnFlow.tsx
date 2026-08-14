@@ -21,6 +21,7 @@ import {
   getWordProgress,
   masteredWordCount,
   getProfile,
+  putSetting,
   savePracticeSession,
   saveWordProgress,
 } from '../storage/repo'
@@ -99,6 +100,12 @@ export function LearnFlow({ stageId }: { stageId: string }) {
   // なぞりでも自分で書くステップでも、表示と同時に自動発音する（2026-08-08 第7回）
   const autoText = phase === 'running' ? (word?.en ?? null) : null
   useAutoSpeak(autoText, 'word', `${wordIdx}-${step}`)
+
+  // 開いたステージのレベルを記憶（一覧やホームのおすすめが続きのレベルを指すように。第21回）
+  useEffect(() => {
+    if (profile && loc) void putSetting(`stageMapLevel:${profile.id}`, loc.level.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id, stageId])
 
   if (!profile) return <LoadingView />
   if (!loc || !word) return <LoadingView label="ステージが見つかりません" />

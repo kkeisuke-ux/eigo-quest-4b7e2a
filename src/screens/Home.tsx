@@ -8,6 +8,7 @@ import { navigate, useAppState } from '../state/store'
 import {
   alphabetMasteryCounts,
   getProfile,
+  getSetting,
   listOwned,
   listTestResults,
   listUnknownWords,
@@ -22,12 +23,13 @@ export function Home() {
     if (!profileId) return null
     const profile = await getProfile(profileId)
     if (!profile) return null
-    const [unknown, progressList, owned, results, alpha] = await Promise.all([
+    const [unknown, progressList, owned, results, alpha, savedLevelId] = await Promise.all([
       listUnknownWords(profileId),
       listWordProgress(profileId),
       listOwned(profileId),
       listTestResults(profileId),
       alphabetMasteryCounts(profileId),
+      getSetting<string>(`stageMapLevel:${profileId}`),
     ])
     const buddy = profile.buddyId != null ? (owned.find((o) => o.id === profile.buddyId) ?? null) : null
     if (buddy) normalizeOwned(buddy)
@@ -40,11 +42,17 @@ export function Home() {
       results.filter((r) => r.kind === 'term' && r.total > 0 && r.correct === r.total).map((r) => r.targetId)
     )
     // おすすめ: ①アルファベット未習得 → ②練習が終わっていないステージ → ③全問正解がまだの5問テスト → ④まとめテスト
+    // 第21回: 最後に学習していたレベルを優先して走査する（中3で学習中の子に
+    // 「ようじ」の未練習ステージを勧め続けないように）
     let nextPractice: WordStageDef | null = null
     let nextStageTest: WordStageDef | null = null
     let nextTerm: { id: string; title: string } | null = null
     let totalPlayable = 0
-    for (const level of playableLevels()) {
+    const allLevels = playableLevels()
+    const orderedLevels = savedLevelId
+      ? [...allLevels.filter((l) => l.id === savedLevelId), ...allLevels.filter((l) => l.id !== savedLevelId)]
+      : allLevels
+    for (const level of orderedLevels) {
       for (const term of level.terms) {
         for (const st of term.stages) {
           totalPlayable += st.wordIds.length

@@ -107,7 +107,9 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
     let alive = true
     void (async () => {
       startMasteredRef.current = await masteredWordCount(profile.id)
-      if (kind === 'term') {
+      // 第21回: 5問テスト（stage）も途中保存・再開できるようにする（最初の問題からの
+      // やり直しを避ける）。復習は出題が毎回変わるため対象外
+      if (kind !== 'review') {
         const session = await getTestSession(profile.id, testKey)
         if (!alive) return
         if (session && session.currentIndex > 0 && session.currentIndex < session.wordIds.length) {
@@ -184,11 +186,11 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
   }
 
   const persistSession = async (idsNow: string[], nextIndex: number, newItems: TestItemRecord[]) => {
-    if (kind !== 'term') return
+    if (kind === 'review') return
     await saveTestSession({
       profileId: profile.id,
       testKey,
-      kind: 'term',
+      kind,
       targetId,
       wordIds: idsNow,
       currentIndex: nextIndex,
@@ -223,8 +225,8 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
     const finishBonus = kind === 'term' ? GAME_CONFIG.coins.termTestFinishBonus : GAME_CONFIG.coins.stageTestFinishBonus
     await awardStudy(profile.id, finishBonus, 0, 'テストかんそう')
     earnedRef.current += finishBonus
+    if (kind !== 'review') await deleteTestSession(profile.id, testKey)
     if (kind === 'term') {
-      await deleteTestSession(profile.id, testKey)
       const msg = perfect
         ? `${profile.name}が ${title}で 100点を とりました！（${correct}/${finalItems.length}問）`
         : `${profile.name}が ${title}で さいこうきろくに ちょうせんしました（${correct}/${finalItems.length}問正解）`
@@ -370,7 +372,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
   }
 
   const restartTest = async () => {
-    if (kind === 'term') await deleteTestSession(profile.id, testKey)
+    if (kind !== 'review') await deleteTestSession(profile.id, testKey)
     evoQueueRef.current = []
     earnedRef.current = 0
     setResultCoins(null)

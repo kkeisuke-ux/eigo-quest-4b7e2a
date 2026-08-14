@@ -120,9 +120,9 @@ export interface TestResultRecord {
 /** まとめテスト・アルファベットテストの途中保存（仕様 §25: 途中経過は自動保存） */
 export interface TestSessionRecord {
   profileId: string
-  /** 'term:<termId>' または 'alphabet:<upper|lower>'（第15回） */
+  /** 'term:<termId>'・'stage:<stageId>'（第21回で追加）・'alphabet:<upper|lower>'（第15回） */
   testKey: string
-  kind: 'term' | 'alphabet'
+  kind: 'term' | 'alphabet' | 'stage'
   targetId: string
   /** アルファベットテストでは文字の出題順 */
   wordIds: string[]
