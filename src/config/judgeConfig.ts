@@ -82,8 +82,12 @@ export const DEFAULT_JUDGE_CONFIG: JudgeConfig = {
   },
   // 2026-08-08 実機フィードバックで大幅に緩和（「文字識別が辛すぎる」）。旧: 0.46/0.6/0.22
   // distinctRatioは緩和とセットで締める（U→O・h→K等の「別の文字を書いたのに正解」を防ぐ）
-  boxCostWeight: 0.45,
-  letterPassCost: 0.56,
+  // 第31回: 「別の文字や大文字/小文字の取り違えでも○になる」との指摘で締め直した。
+  // 許容字形バリアント（ALT_STROKES）の導入で正しい字のコストが大きく下がった（0.15〜0.35）ため、
+  // 合格ラインを下げても正しい字は落ちない。boxCostWeightを上げて4線上の大きさ・位置（＝大文字/小文字の
+  // 区別）をより重く見る。旧: 0.45 / 0.56
+  boxCostWeight: 0.55,
+  letterPassCost: 0.5,
   distinctMargin: 0.12,
   distinctRatio: 0.4,
   strokeCountPenalty: 0.18,

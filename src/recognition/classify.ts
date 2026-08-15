@@ -18,7 +18,7 @@ import {
   resample,
   type Pt,
 } from '../core/geometry'
-import { getRefLetter, getRefVariants, listRefLetters, REF_VIEWBOX, type RefLetter } from '../core/refdata'
+import { clampedAspect, getRefLetter, getRefVariants, listRefLetters, REF_VIEWBOX, type RefLetter } from '../core/refdata'
 import { DEFAULT_JUDGE_CONFIG, type JudgeConfig } from '../config/judgeConfig'
 import { pairCost, pairMetrics, strokeFeatures, type StrokeFeatures } from '../core/judge/metrics'
 import { hungarian } from '../core/judge/hungarian'
@@ -26,8 +26,14 @@ import { hungarian } from '../core/judge/hungarian'
 /** マッチしなかった画（欠け・余り）に与えるコスト */
 const PAD_COST = 0.95
 
-/** 大文字と小文字の形がほぼ同じで、字形からは区別できない文字 */
-export const CASE_EQUIVALENT = new Set(['c', 'k', 'o', 's', 'u', 'v', 'w', 'x', 'z'])
+/**
+ * 大文字と小文字の形がほぼ同じ文字（C/c, O/o 等）。
+ * 第31回まではこれらを「同じ文字」として大小どちらでも正解にしていたが、
+ * 「大文字を小文字のように書いても○になる」との指摘を受けて廃止した。
+ * 字形が同じでも**4線ガイド上の大きさ・位置（box系コスト）で区別できる**ため、
+ * いまは expected の大小をそのまま要求する（単語テストだけは caseInsensitive で両方許容）。
+ */
+export const CASE_EQUIVALENT = new Set<string>()
 
 export interface JudgeLetterOptions {
   /** 大文字・小文字のどちらで書いても正解にする（テスト用。2026-08-08 第5回フィードバック） */
@@ -76,6 +82,8 @@ interface PreparedInk {
   boxBBox: { cx: number; cy: number; w: number; h: number }
   /** box系の総画長（スクリーニング用） */
   totalLen: number
+  /** インク全体の縦横比（クランプ済み。棒・丸など「文字でない形」を弾くのに使う） */
+  aspect: number
 }
 
 function prepareInk(strokesPx: Pt[][], boxSizePx: number, cfg: JudgeConfig): PreparedInk {
@@ -111,6 +119,7 @@ function prepareInk(strokesPx: Pt[][], boxSizePx: number, cfg: JudgeConfig): Pre
       h: inkBBox.h / REF_VIEWBOX,
     },
     totalLen,
+    aspect: clampedAspect(inkBBox),
   }
 }
 
@@ -259,6 +268,19 @@ function matchCost(userSets: StrokeSet[], refSets: StrokeSet[], cfg: JudgeConfig
 const JOIN_PENALTY = 0.05
 
 /**
+ * 縦横比ペナルティ（第31回）。お手本と極端に比率が違う入力を弾く。
+ * 例: ただの横棒を「v」として書いても○になっていた問題の対策。
+ * たて棒の I / l のように、お手本自体が細長い文字は比率も一致するのでペナルティは付かない。
+ */
+const ASPECT_PENALTY = 0.2
+
+function aspectPenalty(ink: PreparedInk, ref: RefLetter): number {
+  const d = Math.abs(Math.log(Math.max(ink.aspect, 1e-3) / Math.max(ref.aspect, 1e-3)))
+  // ln比 0.7（＝比率2倍のずれ）で満点のペナルティ
+  return ASPECT_PENALTY * Math.min(1, d / 0.7)
+}
+
+/**
  * 1候補文字との混合平均コスト。
  * お手本＋別の書き方（字形バリアント。第26回）それぞれについて
  * 続け書き・分け書きの連結バリアントも試し、いちばん近いものを採用する。
@@ -276,14 +298,15 @@ function costAgainstRef(ink: PreparedInk, letter: string, ref: RefLetter, cfg: J
   const refSets: StrokeSet[] = ref.strokes.map((rs) => ({ norm: rs.norm, box: rs.box }))
   const userSets = ink.sets
   const diff = Math.abs(userSets.length - refSets.length)
+  const asp = aspectPenalty(ink, ref)
 
   // 基本: そのままの画数で照合（画数差はペナルティ）
-  let best = matchCost(userSets, refSets, cfg) + diff * cfg.strokeCountPenalty
+  let best = matchCost(userSets, refSets, cfg) + diff * cfg.strokeCountPenalty + asp
   let viaVariant = false
 
   // ユーザーの画数が少ない（続け書き）→ お手本側を連結して照合
   for (const variant of mergeVariants(refSets, userSets.length, cfg.resampleN)) {
-    const c = matchCost(userSets, variant.sets, cfg) + variant.joins * JOIN_PENALTY
+    const c = matchCost(userSets, variant.sets, cfg) + variant.joins * JOIN_PENALTY + asp
     if (c < best) {
       best = c
       viaVariant = true
@@ -291,7 +314,7 @@ function costAgainstRef(ink: PreparedInk, letter: string, ref: RefLetter, cfg: J
   }
   // ユーザーの画数が多い（分け書き）→ ユーザー側を連結して照合
   for (const variant of mergeVariants(userSets, refSets.length, cfg.resampleN)) {
-    const c = matchCost(variant.sets, refSets, cfg) + variant.joins * JOIN_PENALTY
+    const c = matchCost(variant.sets, refSets, cfg) + variant.joins * JOIN_PENALTY + asp
     if (c < best) {
       best = c
       viaVariant = true
