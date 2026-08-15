@@ -43,8 +43,14 @@ export interface InkDiagnostics {
   strokeCount: number
   /** 手のひら・指などtouchをインク化せず弾いた回数（palm rejectionの動作確認用） */
   rejectedTouchCount: number
-  /** pointercancelで破棄された画数 */
+  /** pointercancelで中断された画数（＝ブラウザに割り込まれた回数。0が理想） */
   cancelledStrokes: number
+  /** 中断後に「同じ画の続き」として自動でつなぎ直した回数 */
+  resumedStrokes: number
+  /** pointerdownの取りこぼしから復帰して書き始めた回数 */
+  recoveredStrokes: number
+  /** ペン優先で破棄した手のひら（touch）の画数 */
+  palmDropped: number
 }
 
 export function emptyDiagnostics(): InkDiagnostics {
@@ -62,5 +68,8 @@ export function emptyDiagnostics(): InkDiagnostics {
     strokeCount: 0,
     rejectedTouchCount: 0,
     cancelledStrokes: 0,
+    resumedStrokes: 0,
+    recoveredStrokes: 0,
+    palmDropped: 0,
   }
 }

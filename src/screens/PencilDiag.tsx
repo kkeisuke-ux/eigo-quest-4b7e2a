@@ -63,6 +63,18 @@ export function PencilDiag() {
                   <th>キャンセルされた画</th>
                   <td>{diag.cancelledStrokes}</td>
                 </tr>
+                <tr>
+                  <th>自動でつなぎ直した画</th>
+                  <td>{diag.resumedStrokes}</td>
+                </tr>
+                <tr>
+                  <th>取りこぼしから復帰</th>
+                  <td>{diag.recoveredStrokes}</td>
+                </tr>
+                <tr>
+                  <th>手のひらとして捨てた画</th>
+                  <td>{diag.palmDropped}</td>
+                </tr>
               </tbody>
             </table>
           </Card>
