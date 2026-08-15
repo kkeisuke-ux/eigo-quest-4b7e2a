@@ -18,6 +18,7 @@ import type { InkStroke } from '../core/ink/types'
 import type { ExpectedLetterJudge } from '../recognition/classify'
 import { TraceStep, type TraceMode } from '../learn/TraceStep'
 import { LetterPad } from '../learn/LetterPad'
+import { LetterSvg } from '../ui/LetterSvg'
 import { BuddyCorner } from '../learn/BuddyCorner'
 import { playWrong } from '../audio/sound'
 import { Button, LoadingView, TopBar } from '../ui/components'
@@ -173,7 +174,8 @@ export function AlphabetLearn({
       <div className="split">
         <div className="split-left">
           <div className="card letter-card">
-            <div className="letter-card-letter">{item.letter}</div>
+            {/* お手本はフォントではなく判定に使うストロークデータで描く（第29回） */}
+            <LetterSvg letter={item.letter} full className="letter-card-svg" strokeWidth={6} />
             <SpeakButton text={item.audio.name} kind="letter" size="lg" label="もういちど きく" />
           </div>
           <p className="hint-text">

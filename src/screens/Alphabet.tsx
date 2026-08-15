@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { UPPERCASE, LOWERCASE } from '../data/alphabet'
 import { useProfile, useAsyncData, useRememberAlphabetKind } from '../state/hooks'
+import { LetterSvg } from '../ui/LetterSvg'
 import { navigate, type AlphabetKind } from '../state/store'
 import { getSetting, listAlphabetProgress } from '../storage/repo'
 import { Button, LoadingView, SectionTitle, TopBar } from '../ui/components'
@@ -66,7 +67,8 @@ export function AlphabetHub() {
                 className={`alpha-cell chip-${state}`}
                 onClick={() => navigate({ name: 'alphabetLearn', kind, startIndex: i })}
               >
-                {item.letter}
+                {/* フォントだとJに横棒が付く等、判定に使うお手本と形が違うためSVGで表示（第29回） */}
+                <LetterSvg letter={item.letter} full className="alpha-cell-svg" strokeWidth={7} />
               </button>
             )
           })}

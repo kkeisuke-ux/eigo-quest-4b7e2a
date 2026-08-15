@@ -2401,6 +2401,24 @@ body {
   color: var(--ink);
 }
 
+/* お手本の文字（第29回でフォント→判定に使うストロークデータの描画に変更） */
+.letter-card-svg {
+  width: min(150px, 34vw);
+  height: min(150px, 34vw);
+  display: block;
+}
+
+.alpha-cell-svg {
+  width: 46px;
+  height: 46px;
+  display: block;
+}
+
+.alpha-cell-sm .alpha-cell-svg {
+  width: 30px;
+  height: 30px;
+}
+
 /* ---------- 単語カード ---------- */
 .word-card {
   display: flex;

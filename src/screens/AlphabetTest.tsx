@@ -14,6 +14,7 @@ import { useProfile, useRememberAlphabetKind } from '../state/hooks'
 import { bumpData, navigate, type AlphabetKind } from '../state/store'
 import { rankCountFor, rankForCount, type RankDef } from '../game/ranks'
 import { RankUpModal } from '../ui/RankBadge'
+import { LetterSvg } from '../ui/LetterSvg'
 import { perfectTermTestIds } from '../data/words'
 import {
   addActivity,
@@ -340,7 +341,8 @@ export function AlphabetTest({ kind, letters }: { kind: AlphabetKind; letters?: 
         <div className="split">
           <div className="split-left">
             <div className="card letter-card">
-              <div className="letter-card-letter">{letter}</div>
+              {/* お手本はフォントではなく判定に使うストロークデータで描く（第29回） */}
+              <LetterSvg letter={letter} full className="letter-card-svg" strokeWidth={6} />
               <SpeakButton text={audioName ?? ''} kind="letter" size="lg" label="もういちど きく" />
             </div>
             <BuddyCorner mood="idle" message="いっしょに おぼえよう" />
