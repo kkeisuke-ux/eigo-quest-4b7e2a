@@ -46,6 +46,14 @@ export interface PendingEvolution {
   toName: string
 }
 
+export interface PendingLevelUp {
+  speciesId: string
+  stage: number
+  fromLevel: number
+  toLevel: number
+  name: string
+}
+
 export interface AppState {
   route: Route
   profileId: string | null
@@ -56,6 +64,8 @@ export interface AppState {
   toasts: ToastItem[]
   coinFx: CoinFxItem[]
   pendingEvolution: PendingEvolution | null
+  /** レベルアップ演出のキュー（進化がないレベルアップ用。第22回） */
+  pendingLevelUp: PendingLevelUp | null
 }
 
 let state: AppState = {
@@ -66,6 +76,7 @@ let state: AppState = {
   toasts: [],
   coinFx: [],
   pendingEvolution: null,
+  pendingLevelUp: null,
 }
 
 const listeners = new Set<() => void>()
@@ -123,6 +134,10 @@ export function showToast(text: string) {
 
 export function setPendingEvolution(p: PendingEvolution | null) {
   setState({ pendingEvolution: p })
+}
+
+export function setPendingLevelUp(p: PendingLevelUp | null) {
+  setState({ pendingLevelUp: p })
 }
 
 let coinFxSeq = 0

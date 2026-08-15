@@ -12,10 +12,14 @@ import { playCorrect, playFinish, playPerfect, playWrong } from '../audio/sound'
 import { useAutoSpeak } from '../audio/useSpeech'
 import { useProfile, useRememberAlphabetKind } from '../state/hooks'
 import { bumpData, navigate, type AlphabetKind } from '../state/store'
+import { rankCountFor, rankForCount, type RankDef } from '../game/ranks'
+import { RankUpModal } from '../ui/RankBadge'
+import { perfectTermTestIds } from '../data/words'
 import {
   addActivity,
   addTestResult,
   alphabetMasteryCounts,
+  listTestResults,
   deleteTestSession,
   getAlphabetProgress,
   getTestSession,
@@ -57,6 +61,9 @@ export function AlphabetTest({ kind, letters }: { kind: AlphabetKind; letters?: 
   const [savedIndex, setSavedIndex] = useState(0)
   const earnedRef = useRef(0)
   const evoQueueRef = useRef<ExpGrantEvents[]>([])
+  const [rankUp, setRankUp] = useState<RankDef | null>(null)
+  // テスト開始時点で「この種類（大文字/小文字）が既に26字そろっていたか」を記録（第22回）
+  const prevFullRef = useRef<boolean | null>(null)
   const busyRef = useRef(false)
   const testKey = `alphabet:${kind}${isSubset ? ':weak' : ''}`
 
@@ -72,6 +79,10 @@ export function AlphabetTest({ kind, letters }: { kind: AlphabetKind; letters?: 
     if (!profile || phase !== 'init') return
     let alive = true
     void (async () => {
+      if (prevFullRef.current == null) {
+        const counts0 = await alphabetMasteryCounts(profile.id)
+        prevFullRef.current = (kind === 'upper' ? counts0.upper : counts0.lower) >= 26
+      }
       const session = await getTestSession(profile.id, testKey)
       if (!alive) return
       if (session && session.currentIndex > 0 && session.currentIndex < session.wordIds.length) {
@@ -127,6 +138,12 @@ export function AlphabetTest({ kind, letters }: { kind: AlphabetKind; letters?: 
     const label = kind === 'upper' ? 'おおもじ' : 'こもじ'
     if ((kind === 'upper' && counts.upper === 26) || (kind === 'lower' && counts.lower === 26)) {
       await addActivity(profile.id, profile.name, 'alphabet', `${profile.name}が ${label}を 26もじ マスターしました！`)
+      // 称号ランクアップ: このテストではじめて26字そろったなら1ランク上がる（第22回）
+      if (prevFullRef.current === false) {
+        const trs = await listTestResults(profile.id)
+        const termPerfectCount = perfectTermTestIds(trs).size
+        setRankUp(rankForCount(rankCountFor(termPerfectCount, counts.upper, counts.lower)))
+      }
     }
     bumpData()
     setPhase('done')
@@ -257,6 +274,8 @@ export function AlphabetTest({ kind, letters }: { kind: AlphabetKind; letters?: 
     const missedLetters = missed.map((r) => r.letter)
     return (
       <div className="screen">
+        {/* 26字はじめてそろったときの称号アップ演出（第22回） */}
+        {rankUp && <RankUpModal rank={rankUp} onClose={() => setRankUp(null)} />}
         <TopBar
           title={`${kind === 'upper' ? 'おおもじ' : 'こもじ'}テスト${isSubset ? '（にがてなもじ）' : ''} けっか`}
           back={{ name: 'alphabet' }}

@@ -89,7 +89,12 @@ export function evolutionInfo(owned: OwnedCharacterRecord): EvolutionInfo {
   }
 }
 
-export async function grantExpToOwned(profile: Profile, owned: OwnedCharacterRecord, amount: number): Promise<ExpGrantEvents> {
+export async function grantExpToOwned(
+  profile: Profile,
+  owned: OwnedCharacterRecord,
+  amount: number,
+  opts?: { silentLevelUp?: boolean }
+): Promise<ExpGrantEvents> {
   const species = getSpecies(owned.speciesId)
   if (!species) throw new Error(`unknown species: ${owned.speciesId}`)
   normalizeOwned(owned)
@@ -122,7 +127,8 @@ export async function grantExpToOwned(profile: Profile, owned: OwnedCharacterRec
       await discoverDex(profile.id, owned.speciesId, s)
     }
     await addActivity(profile.id, profile.name, 'evolve', `${profile.name}の ${oldStageName}が ${evolvedTo}に しんかした！`)
-  } else if (level > oldLevel) {
+  } else if (level > oldLevel && !opts?.silentLevelUp) {
+    // なかま画面のスターあげはLevelUpFx（第22回）で祝うためトーストは出さない
     showToast(`${species.stages[stage].name}が レベルアップ！ Lv.${level}`)
   }
 
@@ -269,14 +275,25 @@ export async function buyStars(profileId: string, count = 1): Promise<{ ok: bool
 }
 
 export async function useStar(profileId: string, ownedId: number): Promise<{ ok: boolean; profile?: Profile; expEvents?: ExpGrantEvents }> {
+  const res = await useStars(profileId, ownedId, 1)
+  return res
+}
+
+/** スターをまとめてつかう（最大countこ。持っている数まで。EXPは合算して1回で付与。第22回） */
+export async function useStars(
+  profileId: string,
+  ownedId: number,
+  count: number
+): Promise<{ ok: boolean; used?: number; profile?: Profile; expEvents?: ExpGrantEvents }> {
   const profile = await getProfile(profileId)
   if (!profile || profile.stars <= 0) return { ok: false }
   const owned = await getOwned(ownedId)
   if (!owned) return { ok: false }
-  profile.stars--
+  const used = Math.min(count, profile.stars)
+  profile.stars -= used
   await saveProfile(profile)
-  const expEvents = await grantExpToOwned(profile, owned, GAME_CONFIG.star.exp)
-  return { ok: true, profile, expEvents }
+  const expEvents = await grantExpToOwned(profile, owned, GAME_CONFIG.star.exp * used, { silentLevelUp: true })
+  return { ok: true, used, profile, expEvents }
 }
 
 /** マスター字数のマイルストーン通知（みんな画面用。順位付けはしない） */

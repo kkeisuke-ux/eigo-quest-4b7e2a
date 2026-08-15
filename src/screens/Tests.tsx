@@ -1,6 +1,6 @@
 // テスト画面のラッパー（5問テスト / まとめテスト）。実体は learn/TestRunner。
 import { useEffect } from 'react'
-import { getStageLocation, parseTermId, termTestTitle, termWordIds } from '../data/words'
+import { findTermTest, getStageLocation } from '../data/words'
 import { TestRunner } from '../learn/TestRunner'
 import { useAppState } from '../state/store'
 import { putSetting } from '../storage/repo'
@@ -30,19 +30,17 @@ export function StageTestScreen({ stageId }: { stageId: string }) {
   )
 }
 
-/** まとめテスト（仕様 §25）: 学期の全単語を連続出題。途中保存あり */
+/** まとめテスト（第24回: 4ステージ=最大20問の通し番号テスト）。途中保存あり */
 export function TermTestScreen({ termId }: { termId: string }) {
-  const parsed = parseTermId(termId)
-  useRememberLevel(parsed?.levelId)
-  if (!parsed) return <LoadingView label="テストが見つかりません" />
-  const ids = termWordIds(parsed.levelId, parsed.termIndex)
-  if (ids.length === 0) return <LoadingView label="このテストは じゅんびちゅうです" />
+  const test = findTermTest(termId)
+  useRememberLevel(test?.levelId)
+  if (!test) return <LoadingView label="テストが見つかりません" />
   return (
     <TestRunner
       kind="term"
       targetId={termId}
-      wordIds={ids}
-      title={termTestTitle(parsed.levelId, parsed.termIndex)}
+      wordIds={test.wordIds}
+      title={test.label}
       backRoute={{ name: 'tests' }}
     />
   )

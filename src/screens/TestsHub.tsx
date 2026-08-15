@@ -1,16 +1,18 @@
-// まとめテスト専用ページ（仕様 §25-§26）。
-// - 各学年相当×学期の まとめテストを一覧表示
-// - 最高得点・ぜんもんせいかい回数・途中保存の有無を表示。再挑戦で記録を更新できる
-import { GAME_CONFIG } from '../config/gameConfig'
-import { playableLevels, termId, termLabel, termTestTitle, termWordIds } from '../data/words'
+// まとめテスト一覧（第24回で全面改編）。
+// 旧「学期ごと1本」は語彙拡充後は長すぎるため、
+// 4ステージ（最大20問）ごとの通し番号テスト「まとめテスト N」に分割した。
+// レベルタブつき（れんしゅう一覧とタブ選択を共有。第21回のstageMapLevelを利用）。
+import { useState } from 'react'
+import { LEVELS, TERM_TESTS, playableLevels } from '../data/words'
 import { useAsyncData } from '../state/hooks'
 import { navigate, useAppState } from '../state/store'
-import { getTestSession, listTestResults, listWordProgress } from '../storage/repo'
+import { getSetting, getTestSession, listTestResults, listWordProgress, putSetting } from '../storage/repo'
 import { Button, Card, LoadingView, TopBar } from '../ui/components'
 
-interface TermEntry {
-  termId: string
-  title: string
+interface TestEntry {
+  id: string
+  label: string
+  rangeLabel: string
   practicedCount: number
   totalCount: number
   perfectCount: number
@@ -20,59 +22,81 @@ interface TermEntry {
 
 export function TestsHub() {
   const profileId = useAppState((s) => s.profileId)
+  const [levelId, setLevelId] = useState<string | null>(null)
   const { data } = useAsyncData(async () => {
     if (!profileId) return null
-    const [progress, results] = await Promise.all([listWordProgress(profileId), listTestResults(profileId)])
+    const [progress, results, savedLevelId] = await Promise.all([
+      listWordProgress(profileId),
+      listTestResults(profileId),
+      getSetting<string>(`stageMapLevel:${profileId}`),
+    ])
     const practiced = new Set(progress.filter((p) => p.practicedAt != null).map((p) => p.wordId))
-    const entries: TermEntry[] = []
-    for (const level of playableLevels()) {
-      for (const term of level.terms) {
-        if (term.stages.length === 0) continue
-        const tid = termId(level.id, term.index)
-        const all = termWordIds(level.id, term.index)
-        const termResults = results.filter((r) => r.kind === 'term' && r.targetId === tid)
-        let best: TermEntry['best'] = null
-        let perfectCount = 0
-        for (const r of termResults) {
-          if (!best || r.correct > best.correct) best = { correct: r.correct, total: r.total }
-          if (r.total > 0 && r.correct === r.total) perfectCount++
-        }
-        const session = await getTestSession(profileId, `term:${tid}`)
-        entries.push({
-          termId: tid,
-          title: termTestTitle(level.id, term.index),
-          practicedCount: all.filter((w) => practiced.has(w)).length,
-          totalCount: all.length,
-          perfectCount,
-          best,
-          hasSession: session != null && session.currentIndex > 0,
-        })
-      }
-    }
-    return { entries }
+    return { practiced, results, savedLevelId: savedLevelId ?? null }
   }, [profileId])
 
-  if (!data) return <LoadingView />
+  const { data: entries } = useAsyncData(async () => {
+    if (!profileId || !data) return null
+    const levels = playableLevels()
+    const active = levels.find((lv) => lv.id === (levelId ?? data.savedLevelId)) ?? levels[0]
+    const list: TestEntry[] = []
+    for (const test of TERM_TESTS.filter((t) => t.levelId === active.id)) {
+      const runs = data.results.filter((r) => r.kind === 'term' && r.targetId === test.id)
+      let best: TestEntry['best'] = null
+      let perfectCount = 0
+      for (const r of runs) {
+        if (!best || r.correct > best.correct) best = { correct: r.correct, total: r.total }
+        if (r.total > 0 && r.correct === r.total) perfectCount++
+      }
+      const session = await getTestSession(profileId, `term:${test.id}`)
+      list.push({
+        id: test.id,
+        label: test.label,
+        rangeLabel: test.rangeLabel,
+        practicedCount: test.wordIds.filter((w) => data.practiced.has(w)).length,
+        totalCount: test.wordIds.length,
+        perfectCount,
+        best,
+        hasSession: session != null && session.currentIndex > 0,
+      })
+    }
+    return { list, activeId: active.id }
+  }, [profileId, data, levelId])
+
+  if (!data || !entries) return <LoadingView />
 
   return (
     <div className="screen">
       <TopBar title="まとめテスト" back={{ name: 'home' }} />
       <div className="map-scroll">
-        <p className="tile-sub map-note">
-          その学期の たんごが ぜんぶ つづけて でるよ。とちゅうで やめても つづきから できる。100点は スペシャルボーナス +
-          {GAME_CONFIG.coins.termTestPerfectBonus}コイン！
-        </p>
-        {data.entries.map((e) => (
-          <Card key={e.termId} className={`termtest-card ${e.perfectCount > 0 ? 'termtest-card-perfect' : ''}`}>
+        <div className="row gap tab-row wrap">
+          {LEVELS.map((lv) => (
+            <Button
+              key={lv.id}
+              size="sm"
+              variant={lv.id === entries.activeId ? 'primary' : 'secondary'}
+              disabled={lv.terms.length === 0}
+              onClick={() => {
+                setLevelId(lv.id)
+                if (profileId) void putSetting(`stageMapLevel:${profileId}`, lv.id)
+              }}
+            >
+              {lv.label}
+            </Button>
+          ))}
+        </div>
+        <p className="tile-sub map-note">1つの テストは さいだい20問。もんだいは まいかい ランダムに でるよ</p>
+        {entries.list.map((e) => (
+          <Card key={e.id} className={`termtest-card ${e.perfectCount > 0 ? 'termtest-card-perfect' : ''}`}>
             <div className="termtest-head">
               <span className="termtest-title">
                 {e.perfectCount > 0 && <span className="crown">👑</span>}
-                {e.title}
+                {e.label}
+                <span className="termtest-range">（{e.rangeLabel}）</span>
               </span>
               <span className={`stage-clear ${e.perfectCount === 0 ? 'stage-clear-zero' : ''}`}>100点 {e.perfectCount}回</span>
             </div>
             <p className="tile-sub">
-              はんい: {e.totalCount}語（れんしゅうずみ {e.practicedCount}語）
+              しゅつだい: {e.totalCount}問（れんしゅうずみ {e.practicedCount}語）
             </p>
             {e.best ? (
               e.best.correct === e.best.total ? (
@@ -86,10 +110,7 @@ export function TestsHub() {
               <p className="termtest-status">まだ ちょうせんしていないよ</p>
             )}
             {e.hasSession && <p className="stage-resume">とちゅうの きろくあり（つづきから できるよ）</p>}
-            <Button
-              variant={e.perfectCount > 0 ? 'secondary' : 'accent'}
-              onClick={() => navigate({ name: 'termTest', termId: e.termId })}
-            >
+            <Button variant={e.perfectCount > 0 ? 'secondary' : 'accent'} onClick={() => navigate({ name: 'termTest', termId: e.id })}>
               {e.best && e.best.correct !== e.best.total ? '100点に ちょうせん！' : 'ちょうせんする'}
             </Button>
           </Card>

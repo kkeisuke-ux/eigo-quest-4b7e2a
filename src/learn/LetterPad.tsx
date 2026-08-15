@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { InkCanvas, strokesToPts, type InkCanvasHandle } from '../core/ink/InkCanvas'
 import type { InkStroke } from '../core/ink/types'
 import { judgeExpectedLetter, type ExpectedLetterJudge } from '../recognition/classify'
-import { getRefLetter, hasRefLetter } from '../core/refdata'
+import { hasRefLetter, minRefStrokeCount } from '../core/refdata'
 import { getEffectiveJudgeConfig } from '../config/judgeRuntime'
 import { getAppFlags } from '../config/appFlags'
 import { Button } from '../ui/components'
@@ -26,7 +26,8 @@ export function LetterPad({ letter, resetKey, onJudged, disabled = false, overla
   const judgedRef = useRef(false)
   const timerRef = useRef<number | null>(null)
   const cfg = getEffectiveJudgeConfig()
-  const refCount = hasRefLetter(letter) ? getRefLetter(letter).strokeCount : 1
+  // 「書き終わったか」の判断は最小画数で見る（一筆で書く子を待たせないため。第26回）
+  const refCount = hasRefLetter(letter) ? minRefStrokeCount(letter) : 1
 
   const cancelTimer = () => {
     if (timerRef.current != null) {
@@ -52,7 +53,7 @@ export function LetterPad({ letter, resetKey, onJudged, disabled = false, overla
     // まだ書いている最中なら判定しない（少し待って再確認）
     if (ink.isWriting()) {
       cancelTimer()
-      timerRef.current = window.setTimeout(judgeNow, 400)
+      timerRef.current = window.setTimeout(judgeNow, 180)
       return
     }
     const strokes = ink.getStrokes()
@@ -69,7 +70,7 @@ export function LetterPad({ letter, resetKey, onJudged, disabled = false, overla
     cancelTimer()
     if (judgedRef.current || disabled || all.length === 0) return
     // お手本の画数に達したら短めに、足りないうち（続け書き途中など）はたっぷり待つ
-    const delay = all.length >= refCount ? cfg.scoring.autoJudgeDelayMs : cfg.scoring.autoJudgeDelayMs * 4
+    const delay = all.length >= refCount ? cfg.scoring.autoJudgeDelayMs : cfg.scoring.autoJudgeDelayMs * 3
     timerRef.current = window.setTimeout(judgeNow, delay)
   }
 

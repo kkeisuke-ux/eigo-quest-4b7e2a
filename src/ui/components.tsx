@@ -1,31 +1,50 @@
 // 共通UIコンポーネント。
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { navigate, useAppState, type Route } from '../state/store'
 import { expToNextLevel, normalizeOwned } from '../game/logic'
 import { getSpecies } from '../data/species'
+import { perfectStageIds, perfectTermTestIds, stageClearLevelLabel } from '../data/words'
 import { CharacterSprite } from '../game/sprites'
 import { useAsyncData } from '../state/hooks'
-import { getOwned, getProfile } from '../storage/repo'
+import { alphabetMasteryCounts, getOwned, getProfile, listTestResults } from '../storage/repo'
+import { rankCountFor } from '../game/ranks'
+import { RankChip, RankListModal } from './RankBadge'
 import { SoundButton } from './SoundButton'
 
-/** コイン・スター・バディレベルの常設表示（全画面のTopBarに出る。仕様追加 2026-08-08） */
+/** コイン・スター・称号・バディレベルの常設表示（全画面のTopBarに出る。称号は第22回） */
 export function StatusChips() {
   const profileId = useAppState((s) => s.profileId)
+  const [showRanks, setShowRanks] = useState(false)
   const { data } = useAsyncData(async () => {
     if (!profileId) return null
     const p = await getProfile(profileId)
     if (!p) return null
     const buddy = p.buddyId != null ? ((await getOwned(p.buddyId)) ?? null) : null
     if (buddy) normalizeOwned(buddy)
+    const [results, alpha] = await Promise.all([listTestResults(profileId), alphabetMasteryCounts(profileId)])
+    const termPerfectCount = perfectTermTestIds(results).size
+    // 到達レベル（ステージテスト100点が全部そろっている いちばん上の学期。第25回）
+    const levelLabel = stageClearLevelLabel(perfectStageIds(results))
     return {
       coins: p.coins,
       stars: p.stars,
+      levelLabel,
+      // 称号=たっせい数（アルファベットごうかく＋まとめ100点。第22回）
+      termPerfectCount: rankCountFor(termPerfectCount, alpha.upper, alpha.lower),
       buddy: buddy && getSpecies(buddy.speciesId) ? { speciesId: buddy.speciesId, stage: buddy.stage, level: buddy.level } : null,
     }
   }, [profileId])
   if (!data) return null
   return (
     <span className="status-chips">
+      {/* 称号バッジは常に上に出す（第22回） */}
+      <RankChip perfectCount={data.termPerfectCount} onClick={() => setShowRanks(true)} />
+      <RankListModal open={showRanks} perfectCount={data.termPerfectCount} onClose={() => setShowRanks(false)} />
+      {data.levelLabel && (
+        <span className="badge level-chip" title="テスト100点が ぜんぶ そろっている ところまでのレベル">
+          Lv {data.levelLabel}
+        </span>
+      )}
       <CoinBadge coins={data.coins} />
       <StarBadge stars={data.stars} />
       {data.buddy && (

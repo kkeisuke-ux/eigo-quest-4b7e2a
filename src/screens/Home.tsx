@@ -1,6 +1,9 @@
-// ホーム画面（仕様 §58）: 今日の学習・復習・大文字/小文字進捗・覚えた単語数・仲間・コイン。
+// ホーム画面（仕様 §58）: 今日の学習・復習・実績4枠（たんご/５もん/まとめ/称号）・仲間・コイン。
+import { useState } from 'react'
 import { getSpecies } from '../data/species'
-import { playableLevels, termClearLevelLabel, termId, termTestTitle, type WordStageDef } from '../data/words'
+import { ACTIVE_STAGE_IDS, TERM_TEST_TOTAL, perfectTermTestIds, playableLevels } from '../data/words'
+import { rankCountFor, rankForCount } from '../game/ranks'
+import { RankBadge, RankListModal } from '../ui/RankBadge'
 import { evolutionInfo, normalizeOwned } from '../game/logic'
 import { CharacterSprite } from '../game/sprites'
 import { useAsyncData } from '../state/hooks'
@@ -19,92 +22,62 @@ import { SoundButton } from '../ui/SoundButton'
 
 export function Home() {
   const profileId = useAppState((s) => s.profileId)
+  const [showRanks, setShowRanks] = useState(false)
   const { data } = useAsyncData(async () => {
     if (!profileId) return null
     const profile = await getProfile(profileId)
     if (!profile) return null
-    const [unknown, progressList, owned, results, alpha, savedLevelId, savedAlphaKind] = await Promise.all([
+    const [unknown, progressList, owned, results, alpha] = await Promise.all([
       listUnknownWords(profileId),
       listWordProgress(profileId),
       listOwned(profileId),
       listTestResults(profileId),
       alphabetMasteryCounts(profileId),
-      getSetting<string>(`stageMapLevel:${profileId}`),
-      getSetting<'upper' | 'lower'>(`alphabetKind:${profileId}`),
     ])
     const buddy = profile.buddyId != null ? (owned.find((o) => o.id === profile.buddyId) ?? null) : null
     if (buddy) normalizeOwned(buddy)
     const mastered = progressList.filter((p) => p.masteredAt != null).length
-    const practicedSet = new Set(progressList.filter((p) => p.practicedAt != null).map((p) => p.wordId))
     const stagePerfectSet = new Set(
-      results.filter((r) => r.kind === 'stage' && r.total > 0 && r.correct === r.total).map((r) => r.targetId)
+      results
+        .filter((r) => r.kind === 'stage' && r.total > 0 && r.correct === r.total && ACTIVE_STAGE_IDS.has(r.targetId))
+        .map((r) => r.targetId)
     )
-    const termPerfectSet = new Set(
-      results.filter((r) => r.kind === 'term' && r.total > 0 && r.correct === r.total).map((r) => r.targetId)
-    )
-    // おすすめ: ①アルファベット未習得 → ②練習が終わっていないステージ → ③全問正解がまだの5問テスト → ④まとめテスト
-    // 第21回: 最後に学習していたレベルを優先して走査する（中3で学習中の子に
-    // 「ようじ」の未練習ステージを勧め続けないように）
-    let nextPractice: WordStageDef | null = null
-    let nextStageTest: WordStageDef | null = null
-    let nextTerm: { id: string; title: string } | null = null
-    let totalPlayable = 0
-    const allLevels = playableLevels()
-    const orderedLevels = savedLevelId
-      ? [...allLevels.filter((l) => l.id === savedLevelId), ...allLevels.filter((l) => l.id !== savedLevelId)]
-      : allLevels
-    for (const level of orderedLevels) {
-      for (const term of level.terms) {
-        for (const st of term.stages) {
-          totalPlayable += st.wordIds.length
-          const allPracticed = st.wordIds.every((w) => practicedSet.has(w))
-          if (!allPracticed && !nextPractice) nextPractice = st
-          if (allPracticed && !stagePerfectSet.has(st.id) && !nextStageTest) nextStageTest = st
-        }
-        const tid = termId(level.id, term.index)
-        if (term.stages.length > 0 && !termPerfectSet.has(tid) && !nextTerm) {
-          nextTerm = { id: tid, title: termTestTitle(level.id, term.index) }
-        }
-      }
-    }
-    const alphabetDone = alpha.upper + alpha.lower >= 40
-    // 第21回追補: おすすめするアルファベットのタブも「最後に練習していた方」を優先
-    // （こもじ練習中の子に「おおもじをれんしゅうしよう」と言わない）
-    const alphaKind: 'upper' | 'lower' =
-      alpha.upper < 26 && alpha.lower < 26 ? (savedAlphaKind ?? 'upper') : alpha.upper < 26 ? 'upper' : 'lower'
+    const termPerfectSet = perfectTermTestIds(results)
+    // 「きょうの がくしゅう」は第22回で削除（かんじクエスト第35回と同方針）
+    const totalPlayable = playableLevels()
+      .flatMap((level) => level.terms.flatMap((t) => t.stages))
+      .flatMap((st) => st.wordIds).length
     return {
-      alphaKind,
       profile,
       unknown,
       mastered,
       buddy,
       alpha,
       totalPlayable,
-      alphabetDone,
-      nextPractice,
-      nextStageTest,
-      nextTerm,
-      // まとめテスト100点の最高到達レベル（第13回）
-      termLevel: termClearLevelLabel(termPerfectSet),
+      // 実績4枠（第22回。第24回で20問テスト基準に）
+      stagePerfectCount: stagePerfectSet.size,
+      termPerfectCount: termPerfectSet.size,
+      achievementCount: rankCountFor(termPerfectSet.size, alpha.upper, alpha.lower),
+      totalStages: ACTIVE_STAGE_IDS.size,
+      totalTerms: TERM_TEST_TOTAL,
     }
   }, [profileId])
 
   if (!data) return <LoadingView />
-  const { profile, unknown, mastered, buddy, alpha, alphaKind, totalPlayable, alphabetDone, nextPractice, nextStageTest, nextTerm, termLevel } = data
+  const {
+    profile,
+    unknown,
+    mastered,
+    buddy,
+    alpha,
+    totalPlayable,
+    stagePerfectCount,
+    termPerfectCount,
+    achievementCount,
+    totalStages,
+    totalTerms,
+  } = data
 
-  const recommend = !alphabetDone && (alpha.upper < 26 || alpha.lower < 26)
-    ? alphaKind === 'lower'
-      ? { text: `アルファベットの こもじを れんしゅうしよう（いま ${alpha.lower}/26）`, route: { name: 'alphabet' } as const }
-      : { text: `アルファベットの おおもじを れんしゅうしよう（いま ${alpha.upper}/26）`, route: { name: 'alphabet' } as const }
-    : nextPractice
-        ? { text: `たんご「${nextPractice.label}」の れんしゅうを すすめよう`, route: { name: 'learn', stageId: nextPractice.id } as const }
-        : nextStageTest
-          ? { text: `「${nextStageTest.label}」の ５もんテストで ぜんもんせいかいを めざそう！`, route: { name: 'stageTest', stageId: nextStageTest.id } as const }
-          : nextTerm
-            ? { text: `${nextTerm.title}に ちょうせん！`, route: { name: 'termTest', termId: nextTerm.id } as const }
-            : unknown.length > 0
-              ? { text: `わからなかった ことばを ふくしゅうしよう（${unknown.length}語）`, route: { name: 'review', mode: 'unknown' } as const }
-              : { text: 'ぜんぶ クリア！ すごい！ えいご絵日記も かいてみよう', route: { name: 'diary' } as const }
   const buddySpecies = buddy ? getSpecies(buddy.speciesId) : null
   const buddyInfo = buddy ? evolutionInfo(buddy) : null
 
@@ -116,7 +89,6 @@ export function Home() {
             {profile.name.slice(0, 1)}
           </span>
           <span>{profile.name}</span>
-          {termLevel && <span className="level-badge">Lv {termLevel}</span>}
         </button>
         <div className="home-badges">
           <StatusChips />
@@ -129,10 +101,6 @@ export function Home() {
 
       <div className="home-main">
         <div className="home-left">
-          <Card className="tile tile-study" onClick={() => navigate(recommend.route)}>
-            <h2>きょうの がくしゅう</h2>
-            <p className="tile-big">{recommend.text}</p>
-          </Card>
           <div className="home-actions">
             <button className="action-btn action-alphabet" onClick={() => navigate({ name: 'alphabet' })}>
               <span className="action-icon">🔤</span>
@@ -179,13 +147,55 @@ export function Home() {
               みんな
             </Card>
           </div>
-          <div className="progress-line">
-            <span>
-              おぼえた たんご　{mastered} / {totalPlayable}語
-            </span>
-            <div className="masterbar">
-              <div className="masterbar-fill" style={{ width: `${totalPlayable > 0 ? (mastered / totalPlayable) * 100 : 0}%` }} />
+          {/* 実績4枠: たんご・５もんテスト・まとめテスト・称号（第22回。かんじクエスト第37〜39回と同型） */}
+          <div className="stat-row">
+            <div className="stat-card">
+              <span className="stat-label">📖 おぼえた たんご</span>
+              <span className="stat-num">
+                {mastered}
+                <small> / {totalPlayable}語</small>
+              </span>
+              <div className="masterbar">
+                <div className="masterbar-fill" style={{ width: `${totalPlayable > 0 ? (mastered / totalPlayable) * 100 : 0}%` }} />
+              </div>
             </div>
+            <div className="stat-card">
+              <span className="stat-label">✏️ ５もんテスト 100点</span>
+              <span className="stat-num">
+                {stagePerfectCount}
+                <small> / {totalStages}ステージ</small>
+              </span>
+              <div className="masterbar">
+                <div className="masterbar-fill" style={{ width: `${totalStages > 0 ? (stagePerfectCount / totalStages) * 100 : 0}%` }} />
+              </div>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">💮 まとめテスト 100点</span>
+              <span className="stat-num">
+                {termPerfectCount}
+                <small> / {totalTerms}テスト</small>
+              </span>
+              <div className="masterbar">
+                <div className="masterbar-fill" style={{ width: `${totalTerms > 0 ? (termPerfectCount / totalTerms) * 100 : 0}%` }} />
+              </div>
+            </div>
+            <button className="stat-card stat-card-btn" onClick={() => setShowRanks(true)}>
+              <span className="stat-label">🏅 しょうごう</span>
+              {(() => {
+                const rank = rankForCount(achievementCount)
+                return rank ? (
+                  <span className="stat-rank">
+                    <RankBadge rank={rank} size={38} />
+                    <span className="stat-rank-label">{rank.label}</span>
+                  </span>
+                ) : (
+                  <span className="stat-rank">
+                    <span className="stat-rank-none">まだ なし</span>
+                  </span>
+                )
+              })()}
+              <span className="stat-rank-hint">タップで いちらん</span>
+            </button>
           </div>
         </div>
 
@@ -193,20 +203,24 @@ export function Home() {
           <Card className="buddy-card" onClick={() => navigate({ name: 'friends' })}>
             {buddy && buddySpecies ? (
               <>
-                <CharacterSprite speciesId={buddy.speciesId} stage={buddy.stage} size={140} />
-                <p className="buddy-name">{buddySpecies.stages[buddy.stage].name}</p>
-                <p className="buddy-level">
-                  Lv.{buddy.level}　（しんか {buddy.stage + 1} / {buddySpecies.stages.length}）
-                </p>
-                <ExpBar level={buddy.level} exp={buddy.exp} />
-                {buddyInfo && !buddyInfo.maxed && (
-                  <p className="tile-sub">
-                    しんかまで スター あと<b>{buddyInfo.starsLeft}こ</b>
+                <div className="buddy-sprite-box">
+                  <CharacterSprite speciesId={buddy.speciesId} stage={buddy.stage} size={140} />
+                </div>
+                <div className="buddy-info">
+                  <p className="buddy-name">{buddySpecies.stages[buddy.stage].name}</p>
+                  <p className="buddy-level">
+                    Lv.{buddy.level}　（しんか {buddy.stage + 1} / {buddySpecies.stages.length}）
                   </p>
-                )}
-                {buddyInfo?.maxed && <p className="friend-maxed">🌟 さいごまで しんかした！</p>}
-                {buddyInfo?.tease && <p className="buddy-tease">もうすぐ なにかが おこりそう……</p>}
-                <p className="tile-sub">いっしょに べんきょうちゅう</p>
+                  <ExpBar level={buddy.level} exp={buddy.exp} />
+                  {buddyInfo && !buddyInfo.maxed && (
+                    <p className="tile-sub">
+                      しんかまで スター あと<b>{buddyInfo.starsLeft}こ</b>
+                    </p>
+                  )}
+                  {buddyInfo?.maxed && <p className="friend-maxed">🌟 さいごまで しんかした！</p>}
+                  {buddyInfo?.tease && <p className="buddy-tease">もうすぐ なにかが おこりそう……</p>}
+                  <p className="tile-sub">いっしょに べんきょうちゅう</p>
+                </div>
               </>
             ) : (
               <>
@@ -218,6 +232,7 @@ export function Home() {
           </Card>
         </div>
       </div>
+      <RankListModal open={showRanks} perfectCount={achievementCount} onClose={() => setShowRanks(false)} />
     </div>
   )
 }

@@ -18,7 +18,7 @@ import {
   resample,
   type Pt,
 } from '../core/geometry'
-import { getRefLetter, listRefLetters, REF_VIEWBOX } from '../core/refdata'
+import { getRefLetter, getRefVariants, listRefLetters, REF_VIEWBOX, type RefLetter } from '../core/refdata'
 import { DEFAULT_JUDGE_CONFIG, type JudgeConfig } from '../config/judgeConfig'
 import { pairCost, pairMetrics, strokeFeatures, type StrokeFeatures } from '../core/judge/metrics'
 import { hungarian } from '../core/judge/hungarian'
@@ -116,7 +116,11 @@ function prepareInk(strokesPx: Pt[][], boxSizePx: number, cfg: JudgeConfig): Pre
 
 /** 軽量スクリーニング（DTWなし）: bbox位置・大きさ・総画長・画数だけの安価な距離 */
 function cheapCost(ink: PreparedInk, letter: string, cfg: JudgeConfig): number {
-  const ref = getRefLetter(letter, cfg.resampleN)
+  // 別の書き方（丸を閉じた a、たて棒1本の I 等）も候補に含めるため、バリアントの最小を使う
+  return Math.min(...getRefVariants(letter, cfg.resampleN).map((ref) => cheapCostOf(ink, ref)))
+}
+
+function cheapCostOf(ink: PreparedInk, ref: RefLetter): number {
   const rb = ref.bbox
   const rcx = rb.cx / REF_VIEWBOX
   const rcy = rb.cy / REF_VIEWBOX
@@ -254,9 +258,21 @@ function matchCost(userSets: StrokeSet[], refSets: StrokeSet[], cfg: JudgeConfig
  */
 const JOIN_PENALTY = 0.05
 
-/** 1候補文字との混合平均コスト（続け書き・分け書きのバリアント込み） */
+/**
+ * 1候補文字との混合平均コスト。
+ * お手本＋別の書き方（字形バリアント。第26回）それぞれについて
+ * 続け書き・分け書きの連結バリアントも試し、いちばん近いものを採用する。
+ */
 function costAgainst(ink: PreparedInk, letter: string, cfg: JudgeConfig): LetterCandidate {
-  const ref = getRefLetter(letter, cfg.resampleN)
+  let best: LetterCandidate | null = null
+  for (const ref of getRefVariants(letter, cfg.resampleN)) {
+    const c = costAgainstRef(ink, letter, ref, cfg)
+    if (!best || c.cost < best.cost) best = c
+  }
+  return best ?? { letter, cost: Infinity, countMatch: false, viaVariant: false }
+}
+
+function costAgainstRef(ink: PreparedInk, letter: string, ref: RefLetter, cfg: JudgeConfig): LetterCandidate {
   const refSets: StrokeSet[] = ref.strokes.map((rs) => ({ norm: rs.norm, box: rs.box }))
   const userSets = ink.sets
   const diff = Math.abs(userSets.length - refSets.length)

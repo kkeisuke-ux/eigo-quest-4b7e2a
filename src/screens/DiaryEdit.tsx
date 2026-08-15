@@ -10,6 +10,7 @@ import { getAppFlags } from '../config/appFlags'
 import { InkCanvas, type InkCanvasHandle } from '../core/ink/InkCanvas'
 import { printDiary } from '../diary/pdf'
 import { fromStored, toStored } from '../diary/strokeStore'
+import { TEXT_ROWS_DEFAULT, TEXT_ROWS_LEGACY, textAreaAspect } from '../diary/layout'
 import { searchSentences, type SentenceItem } from '../data/sentences'
 import { awardStudy } from '../game/logic'
 import { playCorrect } from '../audio/sound'
@@ -24,10 +25,6 @@ import { queueEvolutionFromEvents } from '../ui/EvolutionModal'
 
 const PEN_COLORS = ['#233047', '#e0645f', '#e79a2e', '#f2c33c', '#3f9d63', '#4a67d8', '#8a5bd6', '#b57a38']
 const DRAW_ASPECT = 0.58
-/** 英文エリアの行数（第20回で3→5）。旧データはtextRows未保存=3行で開く（字と罫線がズレないように） */
-const TEXT_ROWS_DEFAULT = 5
-/** 1行あたりの高さ/幅比（3行時代の0.42/3を維持） */
-const TEXT_ROW_ASPECT = 0.14
 
 type DrawTool = 'pen' | 'brush' | 'eraser'
 
@@ -114,7 +111,7 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
 
   if (!profile || !loaded) return <LoadingView />
 
-  const textRows = existing ? (existing.textRows ?? 3) : TEXT_ROWS_DEFAULT
+  const textRows = existing ? (existing.textRows ?? TEXT_ROWS_LEGACY) : TEXT_ROWS_DEFAULT
 
   const searchHelper = (q?: string) => {
     const query = (q ?? helperQuery).trim()
@@ -279,11 +276,12 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
         <Card className="diary-text-card">
           <div className="diary-toolbar">
             <span className="diary-tool-label">きょうの えいご（すきに かこう）</span>
-            <button
-              className={`tool-btn ${textEraser ? 'tool-btn-active' : ''}`}
-              onClick={() => setTextEraser(!textEraser)}
-            >
-              🧽 けしゴム{textEraser ? 'ちゅう' : ''}
+            {/* ペン⇔けしゴムを見て分かるように2つ並べる（第25回） */}
+            <button className={`tool-btn ${!textEraser ? 'tool-btn-active' : ''}`} onClick={() => setTextEraser(false)}>
+              ✏️ ペン
+            </button>
+            <button className={`tool-btn ${textEraser ? 'tool-btn-active' : ''}`} onClick={() => setTextEraser(true)}>
+              🧽 けしゴム
             </button>
             <Button size="sm" variant="ghost" onClick={() => textRef.current?.undo()}>
               もどす
@@ -294,7 +292,7 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
           </div>
           <InkCanvas
             inkRef={textRef}
-            aspectRatio={TEXT_ROW_ASPECT * textRows}
+            aspectRatio={textAreaAspect(textRows)}
             penColor="#233047"
             baseWidth={3.6}
             penTool={textEraser ? 'eraser' : 'pen'}

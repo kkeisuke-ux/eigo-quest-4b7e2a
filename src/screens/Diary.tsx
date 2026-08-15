@@ -1,5 +1,6 @@
 // えいご絵日記の一覧（仕様 §32）。1日1ページ、日付別に保存・見返しできる。
 import { strokesToDataUrl } from '../diary/pdf'
+import { TEXT_ROWS_LEGACY, textImageHeightRatio } from '../diary/layout'
 import { useAsyncData } from '../state/hooks'
 import { navigate, useAppState } from '../state/store'
 import { listDiaryEntries } from '../storage/repo'
@@ -18,11 +19,14 @@ function labelOf(dateKey: string): string {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${youbi}）`
 }
 
-/** 手書き英文サムネの高さ（書かれた範囲に合わせる。pdf.tsと同じ考え方） */
-function textThumbHeight(e: { textStrokes: { points: [number, number][] }[]; textBoxWidth: number }, outWidth: number): number {
+/** 手書き英文サムネの高さ（書かれた範囲に合わせるが、行数ぶんは必ず入るようにする。第25回） */
+function textThumbHeight(
+  e: { textStrokes: { points: [number, number][] }[]; textBoxWidth: number; textRows?: number },
+  outWidth: number
+): number {
   const srcW = e.textBoxWidth || 800
   const maxY = Math.max(...e.textStrokes.flatMap((s) => s.points.map((p) => p[1])), srcW * 0.12)
-  const hRatio = Math.min(0.45, (maxY + srcW * 0.03) / srcW)
+  const hRatio = textImageHeightRatio(maxY, srcW, e.textRows ?? TEXT_ROWS_LEGACY)
   return Math.round(outWidth * hRatio)
 }
 

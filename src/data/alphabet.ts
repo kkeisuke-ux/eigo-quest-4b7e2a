@@ -159,6 +159,41 @@ export const ALPHABET: AlphabetItem[] = [...UPPERCASE, ...LOWERCASE]
 
 const byLetter = new Map(ALPHABET.map((a) => [a.letter, a]))
 
+/**
+ * 別の書き方（許容する字形バリアント）。第26回フィードバック。
+ * 子どもが実際に書く形（丸を閉じて書く a/d/g/q/b/p、一筆書き、たて棒1本の I）は
+ * お手本パスと形がずれてコストが高く出るため、これらも「同じ文字」として照合する。
+ * 座標系は上のALPHABETと同じ旧4線（DATA_GUIDE_LINES）。
+ */
+const BOWL_CLOSED = 'M61,49 C56,41 44,41 39,48 C34,55 34,64 39,70 C44,77 56,77 61,69 L61,49'
+const BOWL_CLOSED_RIGHT = 'M34,50 C40,43 53,42 59,48 C65,55 65,64 59,70 C53,77 40,76 34,68 L34,50'
+const BOWL_OPEN_RUN = 'M61,49 C56,41 44,41 39,48 C34,55 34,64 39,70 C44,77 56,77 61,69'
+
+export const ALT_STROKES: Record<string, string[][]> = {
+  // 丸を閉じて書く / 一筆で書く
+  a: [
+    [BOWL_CLOSED, 'M61,42 L61,76'],
+    [`${BOWL_OPEN_RUN} L61,76`],
+    [`${BOWL_CLOSED} L61,76`],
+  ],
+  d: [
+    [BOWL_CLOSED, 'M61,14 L61,76'],
+    [`${BOWL_OPEN_RUN} L61,14 L61,76`],
+  ],
+  g: [
+    [BOWL_CLOSED, 'M61,42 L61,80 C61,91 52,95 43,91 C40,89 38,88 37,86'],
+    [`${BOWL_OPEN_RUN} L61,80 C61,91 52,95 43,91 C40,89 38,88 37,86`],
+  ],
+  q: [
+    [BOWL_CLOSED, 'M61,42 L61,88 C61,93 65,94 68,91'],
+    [`${BOWL_OPEN_RUN} L61,88 C61,93 65,94 68,91`],
+  ],
+  b: [['M34,14 L34,76', BOWL_CLOSED_RIGHT]],
+  p: [['M36,42 L36,94', 'M36,50 C42,43 54,42 60,48 C66,55 66,64 60,70 C54,77 42,76 36,68 L36,50']],
+  // I はたて棒1本で書くことが多い（活字のセリフ付きは3画）
+  I: [['M50,14 L50,76']],
+}
+
 export function getAlphabetItem(letter: string): AlphabetItem | undefined {
   return byLetter.get(letter)
 }

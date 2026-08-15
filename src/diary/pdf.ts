@@ -2,6 +2,7 @@
 // 外部ライブラリを使わず、印刷用ウィンドウ（A4縦レイアウト）を開いて window.print() する。
 // iPad Safariでは印刷ダイアログから「PDFとして保存 / 共有」ができる（README参照）。
 import type { DiaryEntryRecord, StoredStroke } from '../storage/models'
+import { TEXT_ROWS_LEGACY, textImageHeightRatio } from './layout'
 
 /** 保存済みストロークをキャンバスへ再描画してPNG dataURLにする */
 export function strokesToDataUrl(
@@ -66,7 +67,8 @@ export function printDiary(entry: DiaryEntryRecord, opts: DiaryPdfOptions): bool
   if (entry.textStrokes.length > 0) {
     const srcW = entry.textBoxWidth || 800
     const maxY = Math.max(...entry.textStrokes.flatMap((s) => s.points.map((p) => p[1])), srcW * 0.15)
-    const hRatio = Math.min(0.5, (maxY + srcW * 0.03) / srcW)
+    // 行数ぶんの高さまでは必ず出す（5行書いたのに3行までしか印刷されない問題の修正。第25回）
+    const hRatio = textImageHeightRatio(maxY, srcW, entry.textRows ?? TEXT_ROWS_LEGACY)
     textUrl = strokesToDataUrl(entry.textStrokes, srcW, 1200, Math.round(1200 * hRatio), 3.5)
   }
 

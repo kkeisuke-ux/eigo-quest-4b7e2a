@@ -6,6 +6,7 @@ import { navigate, useAppState, type Route } from './state/store'
 import { Toasts } from './ui/components'
 import { CoinFx } from './ui/CoinFx'
 import { EvolutionModal } from './ui/EvolutionModal'
+import { LevelUpFx } from './ui/LevelUpFx'
 import { ProfileSelect } from './screens/ProfileSelect'
 import { Home } from './screens/Home'
 import { AlphabetHub } from './screens/Alphabet'
@@ -115,6 +116,7 @@ export default function App() {
       <Toasts />
       <CoinFx />
       <EvolutionModal />
+      <LevelUpFx />
     </div>
   )
 }

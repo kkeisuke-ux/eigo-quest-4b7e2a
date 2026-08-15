@@ -2,3 +2,11 @@ node_modules/
 dist/
 scripts/kanjivg-cache/
 *.log
+
+# DOVA-SYNDROMEの音源は再配布禁止のためリポジトリに含めない（ローカルには置く）
+public/audio/bgm-home.mp3
+public/audio/bgm-study.mp3
+
+# 合成した発音音声（約1,700ファイル・25MB）はリポジトリに置かない。
+# 再生成: node scripts/gen-voice.mjs（Piper TTS。THIRD-PARTY-NOTICES.md 参照）
+public/audio/voice/

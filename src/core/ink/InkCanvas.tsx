@@ -80,6 +80,16 @@ export function InkCanvas(props: Props) {
   const nextIdRef = useRef(1)
   const diagRef = useRef<InkDiagnostics>(emptyDiagnostics())
   const diagScheduledRef = useRef(false)
+  /** 指でキャンバスをなぞった時のページスクロール（インクにしない指の代替動作。第25回） */
+  const panRef = useRef<{
+    id: number
+    y0: number
+    top0: number
+    el: Element
+    lastY: number
+    lastT: number
+    v: number
+  } | null>(null)
 
   const cbRef = useRef({ onStrokeStart, onStrokeEnd, onInkChange, onDiag, penColor, baseWidth, penTool, disabled, allowTouchInk })
   cbRef.current = { onStrokeStart, onStrokeEnd, onInkChange, onDiag, penColor, baseWidth, penTool, disabled, allowTouchInk }
@@ -259,6 +269,34 @@ export function InkCanvas(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inkRef])
 
+  /** スクロールできる祖先要素を探す（キャンバス上の指スワイプでページを動かすため） */
+  const findScrollParent = (start: HTMLElement | null): Element | null => {
+    let n: HTMLElement | null = start
+    while (n) {
+      const st = window.getComputedStyle(n)
+      if (/(auto|scroll)/.test(st.overflowY) && n.scrollHeight > n.clientHeight + 2) return n
+      n = n.parentElement
+    }
+    const doc = document.scrollingElement
+    return doc && doc.scrollHeight > doc.clientHeight + 2 ? doc : null
+  }
+
+  /** 指を離した後に少し滑らせる（ふつうのスクロールに近い感触にする） */
+  const endPan = () => {
+    const pan = panRef.current
+    panRef.current = null
+    if (!pan) return
+    let v = pan.v
+    if (Math.abs(v) < 0.05) return
+    const el = pan.el
+    const step = () => {
+      el.scrollTop -= v * 16
+      v *= 0.94
+      if (Math.abs(v) > 0.02) requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
+  }
+
   const toPoint = (ev: PointerEvent): InkPoint => {
     const rect = rectRef.current
     const left = rect ? rect.left : 0
@@ -294,6 +332,25 @@ export function InkCanvas(props: Props) {
     // ===== palm rejection: touchはインク化しない（仕様 §3） =====
     if (type === 'touch' && !cbRef.current.allowTouchInk) {
       d.rejectedTouchCount++
+      // 線にはしないが、代わりに指でページをスクロールできるようにする（第25回）。
+      // キャンバスは touch-action:none なのでブラウザ側のスクロールは起きない → 自前で動かす
+      const el = findScrollParent(wrapRef.current)
+      if (el && activeIdRef.current === null) {
+        panRef.current = {
+          id: e.pointerId,
+          y0: e.clientY,
+          top0: el.scrollTop,
+          el,
+          lastY: e.clientY,
+          lastT: e.timeStamp,
+          v: 0,
+        }
+        try {
+          canvasRef.current!.setPointerCapture(e.pointerId)
+        } catch {
+          // capture不可でも続行
+        }
+      }
       flushDiag()
       return
     }
@@ -328,6 +385,19 @@ export function InkCanvas(props: Props) {
   }
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // 指スワイプによるスクロール中
+    const pan = panRef.current
+    if (pan && e.pointerId === pan.id) {
+      const y = e.clientY
+      pan.el.scrollTop = pan.top0 - (y - pan.y0)
+      const dt = e.timeStamp - pan.lastT
+      // 速度は px/ms。極端な値にならないよう十分な間隔のときだけ更新し、上限も設ける
+      if (dt >= 4) pan.v = Math.max(-2.5, Math.min(2.5, (y - pan.lastY) / dt))
+      pan.lastY = y
+      pan.lastT = e.timeStamp
+      e.preventDefault()
+      return
+    }
     const cur = currentRef.current
     if (!cur || e.pointerId !== activeIdRef.current) {
       // 書いていない時もホバー情報だけ診断向けに更新（Apple Pencilホバー対応機で有効）
@@ -391,12 +461,20 @@ export function InkCanvas(props: Props) {
   }
 
   const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (panRef.current?.id === e.pointerId) {
+      endPan()
+      return
+    }
     if (e.pointerId !== activeIdRef.current) return
     finishStroke(false)
     e.preventDefault()
   }
 
   const onPointerCancel = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (panRef.current?.id === e.pointerId) {
+      panRef.current = null
+      return
+    }
     if (e.pointerId !== activeIdRef.current) return
     finishStroke(true)
   }

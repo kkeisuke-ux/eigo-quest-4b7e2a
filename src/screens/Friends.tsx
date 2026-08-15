@@ -1,13 +1,14 @@
 // なかま一覧・育成（仕様 §23, §24）。スター購入と使用、バディ切り替え。
 import { GAME_CONFIG } from '../config/gameConfig'
 import { getSpecies } from '../data/species'
-import { buyStars, evolutionInfo, normalizeOwned, useStar } from '../game/logic'
+import { buyStars, evolutionInfo, normalizeOwned, useStars } from '../game/logic'
 import { CharacterSprite } from '../game/sprites'
 import { useAsyncData } from '../state/hooks'
 import { bumpData, navigate, showToast, useAppState } from '../state/store'
 import { getProfile, listOwned, saveProfile } from '../storage/repo'
 import { Button, Card, ExpBar, LoadingView, TopBar } from '../ui/components'
 import { queueEvolutionFromEvents } from '../ui/EvolutionModal'
+import { queueLevelUpFromEvents } from '../ui/LevelUpFx'
 
 export function Friends() {
   const profileId = useAppState((s) => s.profileId)
@@ -37,15 +38,21 @@ export function Friends() {
     showToast(res.ok ? (count === 1 ? 'スターを かった！' : `スターを ${count}こ かった！`) : 'コインが たりないよ')
   }
 
-  const onUseStar = async (ownedId: number) => {
-    const res = await useStar(profile.id, ownedId)
+  // count=1で1こ、count=5でまとめて（持っている数まで。第22回）
+  const onUseStar = async (ownedId: number, count: number) => {
+    const res = await useStars(profile.id, ownedId, count)
     bumpData()
     if (!res.ok) {
       showToast('スターを もっていないよ')
       return
     }
-    showToast(`EXP +${GAME_CONFIG.star.exp}！`)
-    queueEvolutionFromEvents(res.expEvents)
+    showToast(`スター${res.used}こ → EXP +${GAME_CONFIG.star.exp * (res.used ?? 0)}！`)
+    if (res.expEvents?.evolvedTo) {
+      queueEvolutionFromEvents(res.expEvents)
+    } else {
+      const rec = owned.find((o) => o.id === ownedId)
+      if (rec) queueLevelUpFromEvents(res.expEvents, rec.stage)
+    }
   }
 
   return (
@@ -106,8 +113,11 @@ export function Friends() {
                           いっしょに べんきょうする
                         </Button>
                       )}
-                      <Button size="sm" variant="accent" onClick={() => void onUseStar(o.id!)} disabled={profile.stars <= 0}>
+                      <Button size="sm" variant="accent" onClick={() => void onUseStar(o.id!, 1)} disabled={profile.stars <= 0}>
                         スターを つかう
+                      </Button>
+                      <Button size="sm" variant="accent" onClick={() => void onUseStar(o.id!, 5)} disabled={profile.stars < 5}>
+                        5こ まとめて
                       </Button>
                     </div>
                   </div>

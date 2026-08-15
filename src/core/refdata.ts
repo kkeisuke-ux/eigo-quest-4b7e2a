@@ -1,7 +1,7 @@
 // お手本ストローク（reference stroke）の読み込みと前処理。
 // アルファベットのSVGパス（src/data/alphabet.ts）を点列化し、
 // 判定用の特徴量を事前計算してキャッシュする。
-import { ALPHABET, DATA_GUIDE_LINES, GUIDE_LINES, getAlphabetItem } from '../data/alphabet'
+import { ALPHABET, ALT_STROKES, DATA_GUIDE_LINES, GUIDE_LINES, getAlphabetItem } from '../data/alphabet'
 import { flattenPath } from './svgPath'
 import {
   type Pt,
@@ -107,7 +107,34 @@ export function getRefLetter(letter: string, resampleN = 28): RefLetter {
 
   const item = getAlphabetItem(letter)
   if (!item) throw new Error(`refdata: no stroke data for "${letter}"`)
+  const ref = buildRef(letter, item.strokes, resampleN)
+  cache.set(key, ref)
+  return ref
+}
 
+const variantCache = new Map<string, RefLetter[]>()
+
+/**
+ * その文字として認める字形の一覧（お手本＋別の書き方バリアント）。第26回。
+ * 例: a を「丸を閉じて書く」「一筆で書く」も同じ a として照合する。
+ */
+export function getRefVariants(letter: string, resampleN = 28): RefLetter[] {
+  const key = `${letter}:${resampleN}`
+  const hit = variantCache.get(key)
+  if (hit) return hit
+  const alts = ALT_STROKES[letter] ?? []
+  const list = [getRefLetter(letter, resampleN), ...alts.map((paths) => buildRef(letter, paths, resampleN))]
+  variantCache.set(key, list)
+  return list
+}
+
+/** その文字を書くのに要する最小画数（別の書き方を含む）。自動判定の待ち時間の判断に使う */
+export function minRefStrokeCount(letter: string, resampleN = 28): number {
+  return Math.min(...getRefVariants(letter, resampleN).map((r) => r.strokeCount))
+}
+
+function buildRef(letter: string, paths: string[], resampleN: number): RefLetter {
+  const item = { strokes: paths }
   const raws = item.strokes.map((d) => remapPts(flattenPath(d, 16)))
   const bbox = bboxOf(raws)
   const transform = makeCharTransform(bbox)
@@ -141,6 +168,5 @@ export function getRefLetter(letter: string, resampleN = 28): RefLetter {
     transform,
     aspect: clampedAspect(bbox),
   }
-  cache.set(key, ref)
   return ref
 }

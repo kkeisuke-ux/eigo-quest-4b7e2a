@@ -22,12 +22,17 @@ import {
   addUnknownWord,
   applyWordOutcome,
   clearUnknownWord,
+  alphabetMasteryCounts,
   deleteTestSession,
   getProfile,
   getTestSession,
+  listTestResults,
   masteredWordCount,
   saveTestSession,
 } from '../storage/repo'
+import { perfectTermTestIds } from '../data/words'
+import { rankCountFor, rankForCount, type RankDef } from '../game/ranks'
+import { RankUpModal } from '../ui/RankBadge'
 import type { TestItemRecord, TestSessionRecord } from '../storage/models'
 import type { WordJudgeResult } from '../recognition/classify'
 import { BuddyCorner, type BuddyMood } from './BuddyCorner'
@@ -77,6 +82,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
   const [mark, setMark] = useState<'correct' | 'wrong' | null>(null)
   const [resultCoins, setResultCoins] = useState<{ amount: number; breakdown: CoinBreakdownItem[] } | null>(null)
   const [showCelebration, setShowCelebration] = useState(false)
+  const [rankUp, setRankUp] = useState<RankDef | null>(null)
   const [buddyMood, setBuddyMood] = useState<BuddyMood>('idle')
   const [buddyMsg, setBuddyMsg] = useState<string | undefined>(undefined)
   const [savedSession, setSavedSession] = useState<TestSessionRecord | null>(null)
@@ -210,6 +216,14 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
   const finish = async (finalItems: TestItemRecord[]) => {
     const correct = finalItems.filter((i) => i.result === 'correct').length
     const perfect = finalItems.length > 0 && correct === finalItems.length
+    // 称号ランクアップ判定: このまとめテストで「はじめての100点」なら1ランク上がる（第22回）
+    if (kind === 'term' && perfect) {
+      const [prior, alpha] = await Promise.all([listTestResults(profile.id), alphabetMasteryCounts(profile.id)])
+      const prevPerfect = perfectTermTestIds(prior)
+      if (!prevPerfect.has(targetId)) {
+        setRankUp(rankForCount(rankCountFor(prevPerfect.size, alpha.upper, alpha.lower) + 1))
+      }
+    }
     if (kind !== 'review') {
       await addTestResult({
         profileId: profile.id,
@@ -425,6 +439,8 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
             onClose={() => setShowCelebration(false)}
           />
         )}
+        {/* 称号アップは100点セレブレーションを閉じたあとに見せる（第22回） */}
+        {rankUp && !showCelebration && <RankUpModal rank={rankUp} onClose={() => setRankUp(null)} />}
         <TopBar title={`${title} けっか`} back={backRoute} />
         <div className="result-wrap">
           <div className={`card result-main ${perfect ? 'result-perfect' : ''}`}>

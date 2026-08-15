@@ -299,6 +299,19 @@ export function Settings() {
         </Card>
 
         <Card>
+          <h3>このアプリの りようじょうけん</h3>
+          <p className="tile-sub">
+            作者: 香村 恵介。コード・キャラクター・イラスト・単語や例文は{' '}
+            <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja" target="_blank" rel="noreferrer">
+              CC BY-NC-SA 4.0
+            </a>
+            （出典を示せば自由に使ってよい／<b>販売など営利目的での利用は不可</b>／改変版も同じ条件で公開）。
+            下記の第三者素材は元の提供条件のままです。学習の補助を目的とした個人制作物のため、
+            判定精度や提供の継続は保証しません。
+          </p>
+        </Card>
+
+        <Card>
           <h3>つかっている音の素材（CREDITS）</h3>
           <p className="tile-sub">
             効果音・BGMの音源ファイルを public/audio/ に配置した場合、以下の素材を使用します（仕様 §56）:
@@ -317,6 +330,13 @@ export function Settings() {
                 dova-s.jp
               </a>
               ）— 「ポップン・ダッシュ」「おでかけしましょ」
+            </li>
+            <li>
+              発音の音声: Piper TTS（MIT）＋ 音声モデル en_US-amy-medium（
+              <a href="https://huggingface.co/rhasspy/piper-voices" target="_blank" rel="noreferrer">
+                rhasspy/piper-voices
+              </a>
+              、Mimic 3 voices 由来）でローカル合成
             </li>
             <li>音源ファイル未配置のときは、アプリ内蔵の合成音（Web Audio API）で鳴ります。</li>
           </ul>

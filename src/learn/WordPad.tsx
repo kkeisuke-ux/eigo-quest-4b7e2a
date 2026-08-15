@@ -9,7 +9,7 @@ import type { Pt } from '../core/geometry'
 import { judgeWord, type WordJudgeResult } from '../recognition/classify'
 import { getEffectiveJudgeConfig } from '../config/judgeRuntime'
 import { getAppFlags } from '../config/appFlags'
-import { getRefLetter, hasRefLetter } from '../core/refdata'
+import { hasRefLetter, minRefStrokeCount } from '../core/refdata'
 import { Button } from '../ui/components'
 import { LetterSvg, RuleLines } from '../ui/LetterSvg'
 
@@ -163,7 +163,7 @@ export function WordPad({
     if (boxRefs.some((r) => r.current?.isWriting())) {
       if (!fromButton) {
         cancelTimer()
-        timerRef.current = window.setTimeout(() => judgeNow(false), 400)
+        timerRef.current = window.setTimeout(() => judgeNow(false), 180)
       }
       return
     }
@@ -192,10 +192,12 @@ export function WordPad({
     if (!everyFilled) return
     // 書き終わりを待ってから判定する（2026-08-08フィードバック: gの2画目を書く前に×が出ない
     // ように）。お手本の画数に足りないボックスが残っている間は、たっぷり待つ
+    // 「書き終わったか」は最小画数（別の書き方＝一筆書きを含む）で判断する。
+    // お手本の画数で見ていたため、続け書きの子はいつも長く待たされていた（第26回）
     const everyComplete = letters.every(
-      (ch, i) => !hasRefLetter(ch) || strokesOf(i) >= getRefLetter(ch).strokeCount
+      (ch, i) => !hasRefLetter(ch) || strokesOf(i) >= minRefStrokeCount(ch)
     )
-    const delay = everyComplete ? cfg.scoring.autoJudgeDelayMs : cfg.scoring.autoJudgeDelayMs * 4
+    const delay = everyComplete ? cfg.scoring.autoJudgeDelayMs : cfg.scoring.autoJudgeDelayMs * 3
     timerRef.current = window.setTimeout(() => judgeNow(false), delay)
   }
 
