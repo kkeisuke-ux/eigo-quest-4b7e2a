@@ -18,9 +18,10 @@ import {
   clearUnknownWord,
   deletePracticeSession,
   getPracticeSession,
-  getWordProgress,
-  masteredWordCount,
   getProfile,
+  getWordProgress,
+  markStudied,
+  masteredWordCount,
   putSetting,
   savePracticeSession,
   saveWordProgress,
@@ -154,6 +155,7 @@ export function LearnFlow({ stageId }: { stageId: string }) {
     else p.recallDone++
     p.lastSeenAt = Date.now()
     if (stepDone === LAST_STEP) p.practicedAt = Date.now()
+    void markStudied(profile.id)
     if (p.nextReviewAt == null) {
       const d = new Date()
       d.setHours(0, 0, 0, 0)

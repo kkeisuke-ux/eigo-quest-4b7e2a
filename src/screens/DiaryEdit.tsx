@@ -16,7 +16,7 @@ import { awardStudy } from '../game/logic'
 import { playCorrect } from '../audio/sound'
 import { useProfile } from '../state/hooks'
 import { bumpData, navigate, showToast } from '../state/store'
-import { addActivity, getDiaryEntry, saveDiaryEntry } from '../storage/repo'
+import { addActivity, getDiaryEntry, markStudied, saveDiaryEntry } from '../storage/repo'
 import type { DiaryEntryRecord } from '../storage/models'
 import { Button, Card, LoadingView, TopBar } from '../ui/components'
 import { TextRuleLines } from '../ui/LetterSvg'
@@ -198,6 +198,8 @@ export function DiaryEdit({ dateKey }: { dateKey: string }) {
     }
     await saveDiaryEntry(rec)
     setExisting(rec)
+    // にっきも べんきょうのうち（カレンダーのスタンプ対象。第30回）
+    void markStudied(profile.id)
     if (!existing) {
       const reward = await awardStudy(profile.id, GAME_CONFIG.coins.diarySave, GAME_CONFIG.exp.diary, 'えいご絵日記')
       queueEvolutionFromEvents(reward.expEvents)

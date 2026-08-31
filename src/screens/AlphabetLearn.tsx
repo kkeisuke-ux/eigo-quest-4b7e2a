@@ -13,7 +13,12 @@ import { playCorrect, playPerfect } from '../audio/sound'
 import { useAutoSpeak } from '../audio/useSpeech'
 import { useProfile, useRememberAlphabetKind } from '../state/hooks'
 import { bumpData, navigate, type AlphabetKind } from '../state/store'
-import { addActivity, getAlphabetProgress, saveAlphabetProgress } from '../storage/repo'
+import {
+  addActivity,
+  getAlphabetProgress,
+  markStudied,
+  saveAlphabetProgress,
+} from '../storage/repo'
 import type { InkStroke } from '../core/ink/types'
 import type { ExpectedLetterJudge } from '../recognition/classify'
 import { TraceStep, type TraceMode } from '../learn/TraceStep'
@@ -80,6 +85,7 @@ export function AlphabetLearn({
     if (isLastRound) {
       p.writes++
       if (p.practicedAt == null) p.practicedAt = Date.now()
+      void markStudied(profile.id)
     }
     await saveAlphabetProgress(p)
     let evo: ExpGrantEvents | null = null

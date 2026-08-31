@@ -3840,3 +3840,348 @@ body {
 .lvlfx-arrow {
   color: var(--muted);
 }
+
+/* ---------- べんきょうカレンダー（第45回） ---------- */
+.studycal {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  background: var(--panel);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+}
+
+.studycal-cal {
+  flex: 0 0 auto;
+}
+
+.studycal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.studycal-month {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.studycal-nav {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.studycal-nav:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.studycal-nav-empty {
+  width: 20px;
+}
+
+.studycal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 30px);
+  gap: 2px;
+}
+
+.studycal-wd {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.studycal-wd.sun {
+  color: var(--bad);
+}
+
+.studycal-wd.sat {
+  color: var(--primary);
+}
+
+.studycal-cell {
+  position: relative;
+  height: 30px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f1ea;
+}
+
+.studycal-blank {
+  background: transparent;
+}
+
+.studycal-day {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* スタンプが付いた日は数字を沈めて花丸を主役にする */
+.studycal-cell.stamped {
+  background: #fff3d6;
+}
+
+.studycal-cell.stamped .studycal-day {
+  position: absolute;
+  top: 0;
+  left: 2px;
+  font-size: 8px;
+  opacity: 0.45;
+}
+
+.studycal-stamp {
+  font-size: 19px;
+  line-height: 1;
+}
+
+.studycal-cell.today {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.studycal-cell.future {
+  background: transparent;
+}
+
+.studycal-cell.future .studycal-day {
+  opacity: 0.35;
+}
+
+.studycal-stats {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.studycal-stat {
+  flex: 1;
+  background: #f4f1ea;
+  border-radius: 12px;
+  padding: 4px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.studycal-stat-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.studycal-stat-num {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--ink);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.studycal-stat-num small {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.studycal-streak {
+  background: #ffe9d6;
+}
+
+.studycal-streak .studycal-stat-num {
+  color: var(--accent-dark);
+}
+
+.studycal-hint {
+  flex: 0 0 auto;
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* みんな画面のミニ表示: 月送りなし・数字だけ横に並べる */
+.studycal-compact {
+  padding: 8px 0 0;
+  box-shadow: none;
+  background: transparent;
+  justify-content: flex-start;
+}
+
+/* みんな画面では数字を横いっぱいに伸ばさない（カードが間延びして読みにくくなる） */
+.studycal-compact .studycal-stats {
+  flex: 0 0 220px;
+}
+
+.studycal-compact .studycal-grid {
+  grid-template-columns: repeat(7, 22px);
+}
+
+.studycal-compact .studycal-cell {
+  height: 22px;
+  border-radius: 5px;
+}
+
+.studycal-compact .studycal-stamp {
+  font-size: 14px;
+}
+
+.studycal-compact .studycal-stat {
+  padding: 3px 10px;
+}
+
+.studycal-compact .studycal-stat-label {
+  font-size: 11px;
+}
+
+.studycal-compact .studycal-stat-num {
+  font-size: 20px;
+}
+
+.streak-chip {
+  background: #ffe9d6;
+  color: var(--accent-dark);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* れんぞくボーナスの受け取り演出（第52回） */
+.streak-bonus-modal {
+  text-align: center;
+}
+
+.streak-bonus-emoji {
+  margin: 0 0 6px;
+  font-size: 48px;
+  line-height: 1;
+}
+
+.streak-bonus-line {
+  margin: 0 0 6px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+}
+
+.streak-bonus-label {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.streak-bonus-coins {
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--accent-dark);
+}
+
+.streak-bonus-sub {
+  margin: 4px 0 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* スマホ縦置き: カレンダーと数字が横に並びきらないので上下に積む（第53回） */
+@media (max-width: 700px) {
+  .studycal {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .studycal-cal {
+    width: 100%;
+  }
+
+  /* 幅に合わせてマスを伸ばす（固定30pxだと はみ出す／余る） */
+  .studycal-grid {
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+  }
+
+  .studycal-cell {
+    height: auto;
+    aspect-ratio: 1 / 1;
+  }
+
+  .studycal-day {
+    font-size: 12px;
+  }
+
+  .studycal-stamp {
+    font-size: 20px;
+  }
+
+  .studycal-stats {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .studycal-stat {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    padding: 6px 10px;
+  }
+
+  .studycal-stat-label {
+    font-size: 11px;
+  }
+
+  .studycal-stat-num {
+    font-size: 22px;
+  }
+
+  .studycal-hint {
+    flex: 1 1 100%;
+    text-align: left;
+  }
+
+  /* みんな画面のミニ表示も同じく上下に積む（横220px固定だと収まらない） */
+  .studycal-compact {
+    padding: 8px 0 0;
+  }
+
+  .studycal-compact .studycal-stats {
+    flex: 1 1 auto;
+  }
+
+  .studycal-compact .studycal-grid {
+    grid-template-columns: repeat(7, 1fr);
+  }
+
+  .studycal-compact .studycal-cell {
+    height: auto;
+  }
+
+  .studycal-compact .studycal-stamp {
+    font-size: 18px;
+  }
+
+  .studycal-compact .studycal-stat-num {
+    font-size: 20px;
+  }
+}

@@ -1,5 +1,5 @@
 // ホーム画面（仕様 §58）: 今日の学習・復習・実績4枠（たんご/５もん/まとめ/称号）・仲間・コイン。
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getSpecies } from '../data/species'
 import { ACTIVE_STAGE_IDS, TERM_TEST_TOTAL, perfectTermTestIds, playableLevels } from '../data/words'
 import { rankCountFor, rankForCount } from '../game/ranks'
@@ -7,32 +7,50 @@ import { RankBadge, RankListModal } from '../ui/RankBadge'
 import { evolutionInfo, normalizeOwned } from '../game/logic'
 import { CharacterSprite } from '../game/sprites'
 import { useAsyncData } from '../state/hooks'
-import { navigate, useAppState } from '../state/store'
+import { bumpData, navigate, useAppState } from '../state/store'
 import {
   alphabetMasteryCounts,
+  backfillStudyDays,
   getProfile,
   getSetting,
   listOwned,
+  listStudyDays,
   listTestResults,
   listUnknownWords,
   listWordProgress,
+  takePendingStreakBonus,
 } from '../storage/repo'
-import { Button, Card, ExpBar, LoadingView, StatusChips } from '../ui/components'
+import type { StreakBonus } from '../game/streak'
+import { Button, Card, ExpBar, LoadingView, Modal, StatusChips } from '../ui/components'
+import { StudyCalendar } from '../ui/StudyCalendar'
 import { SoundButton } from '../ui/SoundButton'
 
 export function Home() {
   const profileId = useAppState((s) => s.profileId)
   const [showRanks, setShowRanks] = useState(false)
+  // れんぞくボーナスは練習中に割り込まず、ホームに戻ってきたときに受け取り演出を出す（第30回）
+  const [bonuses, setBonuses] = useState<StreakBonus[]>([])
+  useEffect(() => {
+    if (!profileId) return
+    void takePendingStreakBonus(profileId).then((list) => {
+      if (list.length === 0) return
+      setBonuses(list)
+      bumpData()
+    })
+  }, [profileId])
   const { data } = useAsyncData(async () => {
     if (!profileId) return null
     const profile = await getProfile(profileId)
     if (!profile) return null
-    const [unknown, progressList, owned, results, alpha] = await Promise.all([
+    // カレンダー導入前の記録から べんきょうした日を1度だけ復元する（第30回）
+    await backfillStudyDays(profileId)
+    const [unknown, progressList, owned, results, alpha, studyDays] = await Promise.all([
       listUnknownWords(profileId),
       listWordProgress(profileId),
       listOwned(profileId),
       listTestResults(profileId),
       alphabetMasteryCounts(profileId),
+      listStudyDays(profileId),
     ])
     const buddy = profile.buddyId != null ? (owned.find((o) => o.id === profile.buddyId) ?? null) : null
     if (buddy) normalizeOwned(buddy)
@@ -49,6 +67,7 @@ export function Home() {
       .flatMap((st) => st.wordIds).length
     return {
       profile,
+      studyDays,
       unknown,
       mastered,
       buddy,
@@ -66,6 +85,7 @@ export function Home() {
   if (!data) return <LoadingView />
   const {
     profile,
+    studyDays,
     unknown,
     mastered,
     buddy,
@@ -125,6 +145,8 @@ export function Home() {
               <span className="action-sub">えと えいごで きょうを のこそう</span>
             </button>
           </div>
+          {/* べんきょうカレンダー（第30回）: 学習の入口のすぐ下に置いて「きょうも やろう」を促す */}
+          <StudyCalendar records={studyDays} stamp="🌸" />
           <div className="tile-row">
             <Card className="tile" onClick={() => navigate({ name: 'unknownList' })}>
               <h3>わからなかった ことば</h3>
@@ -232,6 +254,19 @@ export function Home() {
           </Card>
         </div>
       </div>
+      <Modal open={bonuses.length > 0} onClose={() => setBonuses([])}>
+        <div className="streak-bonus-modal">
+          <p className="streak-bonus-emoji">🎉</p>
+          {bonuses.map((b, i) => (
+            <p key={`${b.streak}-${i}`} className="streak-bonus-line">
+              <span className="streak-bonus-label">{b.label}</span>
+              <span className="streak-bonus-coins">＋{b.coins} コイン</span>
+            </p>
+          ))}
+          <p className="streak-bonus-sub">よく つづけたね！ この ちょうしで いこう</p>
+          <Button onClick={() => setBonuses([])}>やったー！</Button>
+        </div>
+      </Modal>
       <RankListModal open={showRanks} perfectCount={achievementCount} onClose={() => setShowRanks(false)} />
     </div>
   )

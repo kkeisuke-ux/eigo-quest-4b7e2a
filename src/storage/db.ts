@@ -1,7 +1,7 @@
 // IndexedDBの薄いPromiseラッパ。外部ライブラリ非依存。
 // かんじクエストとは完全に独立したDB（仕様 §38: ゲームデータも独立）。
 const DB_NAME = 'eigo-quest'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 export const STORE_NAMES = [
   'profiles',
@@ -19,6 +19,7 @@ export const STORE_NAMES = [
   'diaryEntries',
   'myWords',
   'activityFeed',
+  'studyDays',
   'settings',
 ] as const
 
@@ -55,6 +56,8 @@ export function getDb(): Promise<IDBDatabase> {
       withProfileIndex(mk('diaryEntries', { keyPath: ['profileId', 'dateKey'] }))
       withProfileIndex(mk('myWords', { keyPath: ['profileId', 'wordId'] }))
       mk('activityFeed', { keyPath: 'id', autoIncrement: true })
+      // 第30回: べんきょうカレンダー用。1プロフィール1日1件
+      withProfileIndex(mk('studyDays', { keyPath: ['profileId', 'ymd'] }))
       mk('settings', { keyPath: 'key' })
     }
     req.onsuccess = () => resolve(req.result)

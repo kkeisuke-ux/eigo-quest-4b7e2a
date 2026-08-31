@@ -240,3 +240,18 @@ export interface SettingsRecord {
   key: string
   value: unknown
 }
+
+/**
+ * 「その日べんきょうした」を1日1件で記録する（第30回。かんじクエストの仕組みを移植）。
+ * カレンダーのスタンプ・連続日数・月の日数はこのレコードだけを見れば出せる。
+ * テスト結果や進捗から毎回導出すると、練習だけ・にっきだけの日を取りこぼすため独立させた。
+ */
+export interface StudyDayRecord {
+  profileId: string
+  /** ローカル時刻の YYYY-MM-DD */
+  ymd: string
+  /** その日に「べんきょうした」と数えた回数 */
+  count: number
+  firstAt: number
+  lastAt: number
+}

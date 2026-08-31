@@ -1,5 +1,7 @@
 // データアクセス層。画面からはこのモジュール経由で読み書きする。
 import { GAME_CONFIG } from '../config/gameConfig'
+import { bonusForStreak, dailyStreakCoins, monthKeyOf, studySummary, todayYmd, ymdOf } from '../game/streak'
+import type { StreakBonus } from '../game/streak'
 import { showCoinFx } from '../state/store'
 import {
   dbAdd,
@@ -26,6 +28,7 @@ import type {
   Profile,
   SettingsRecord,
   StrokeSampleRecord,
+  StudyDayRecord,
   TestResultRecord,
   TestSessionRecord,
   UnknownWordRecord,
@@ -111,6 +114,7 @@ export async function deleteProfileDeep(profileId: string): Promise<void> {
     'gachaHistory',
     'diaryEntries',
     'myWords',
+    'studyDays',
   ] as const
   for (const store of byProfileStores) {
     const keys = await dbIndexKeys(store, 'byProfile', profileId)
@@ -232,6 +236,7 @@ export async function applyWordOutcome(
     p.nextReviewAt = startOfTomorrow()
   }
   await saveWordProgress(p)
+  void markStudied(profileId)
   return p
 }
 
@@ -466,6 +471,119 @@ export async function listActivity(limit = 50): Promise<ActivityRecord[]> {
   return all.sort((a, b) => b.at - a.at).slice(0, limit)
 }
 
+// ---------------- べんきょうカレンダー（第30回） ----------------
+export const PENDING_BONUS_KEY = (profileId: string) => `pendingStreakBonus:${profileId}`
+
+/**
+ * markStudied は解答のたびに投げっぱなし（void）で呼ばれるので、同時に走ると
+ * 「その日はじめて」の判定が二重に通ってボーナスが2回出うる。
+ * IndexedDBのget→putは不可分でないため、ここで直列化しておく。
+ */
+let studyChain: Promise<unknown> = Promise.resolve()
+
+/**
+ * 「きょう べんきょうした」を記録する。
+ * れんしゅう・テスト・ふくしゅう・にっきのどれでも1つやれば付く。
+ */
+export async function markStudied(profileId: string, at: number = Date.now()): Promise<void> {
+  const run = studyChain.then(() => markStudiedInner(profileId, at))
+  studyChain = run.catch(() => undefined)
+  await run
+}
+
+async function markStudiedInner(profileId: string, at: number): Promise<void> {
+  const ymd = ymdOf(at)
+  const existing = await dbGet<StudyDayRecord>('studyDays', [profileId, ymd])
+  if (existing) {
+    existing.count++
+    existing.lastAt = Math.max(existing.lastAt, at)
+    existing.firstAt = Math.min(existing.firstAt, at)
+    await dbPut('studyDays', existing)
+    return
+  }
+  await dbPut('studyDays', { profileId, ymd, count: 1, firstAt: at, lastAt: at } satisfies StudyDayRecord)
+
+  // その日はじめてスタンプが付いたときだけ判定する。1日1レコードなので二重付与にならない
+  const days = await listStudyDays(profileId)
+  const { streak } = studySummary(days, monthKeyOf(at))
+  const earned: StreakBonus[] = []
+  const daily = dailyStreakCoins(streak)
+  if (daily > 0) {
+    earned.push({ streak, coins: daily, label: streak === 1 ? 'きょうの ぶん' : `${streak}日め れんぞく` })
+  }
+  const milestone = bonusForStreak(streak)
+  if (milestone) earned.push(milestone)
+  if (earned.length === 0) return
+
+  for (const b of earned) await addCoins(profileId, b.coins, `${b.label}ボーナス`)
+  if (milestone) {
+    const profile = await getProfile(profileId)
+    if (profile) {
+      await addActivity(profileId, profile.name, 'milestone', `${profile.name}が ${milestone.label}を たっせい！`)
+    }
+  }
+  // 受け取り演出はホームで出す（練習中に割り込むと集中が切れるため、持ち越して見せる）
+  const pending = (await getSetting<StreakBonus[]>(PENDING_BONUS_KEY(profileId))) ?? []
+  await putSetting(PENDING_BONUS_KEY(profileId), [...pending, ...earned])
+}
+
+export function listStudyDays(profileId: string): Promise<StudyDayRecord[]> {
+  return dbIndexAll<StudyDayRecord>('studyDays', 'byProfile', profileId)
+}
+
+/** ホームで受け取り演出を出したあと消す */
+export async function takePendingStreakBonus(profileId: string): Promise<StreakBonus[]> {
+  const pending = (await getSetting<StreakBonus[]>(PENDING_BONUS_KEY(profileId))) ?? []
+  if (pending.length > 0) await putSetting(PENDING_BONUS_KEY(profileId), [])
+  return pending
+}
+
+/**
+ * カレンダー導入前の記録から、べんきょうした日を1度だけ復元する。
+ * これをしないと導入時にカレンダーが真っ白になり、それまでの積み上げが無かったことになる。
+ * 過去分にボーナスは出さない（コインが一気に増えて興ざめするため）。
+ */
+export async function backfillStudyDays(profileId: string): Promise<void> {
+  const flagKey = `studyDaysBackfilled:${profileId}`
+  if (await getSetting<boolean>(flagKey)) return
+  const [tests, words, letters, diaries] = await Promise.all([
+    listTestResults(profileId),
+    listWordProgress(profileId),
+    listAlphabetProgress(profileId),
+    listDiaryEntries(profileId),
+  ])
+  const stamps = new Map<string, number>()
+  const add = (at: number | null | undefined) => {
+    if (!at) return
+    const key = ymdOf(at)
+    const prev = stamps.get(key)
+    if (prev == null || at < prev) stamps.set(key, at)
+  }
+  for (const t of tests) add(t.at)
+  for (const w of words) {
+    add(w.practicedAt)
+    add(w.masteredAt)
+    add(w.lastSeenAt)
+  }
+  for (const l of letters) {
+    add(l.practicedAt)
+    add(l.masteredAt)
+    add(l.lastSeenAt)
+  }
+  for (const d of diaries) add(d.updatedAt ?? d.createdAt)
+  for (const [key, at] of stamps) {
+    const existing = await dbGet<StudyDayRecord>('studyDays', [profileId, key])
+    if (existing) continue
+    await dbPut('studyDays', { profileId, ymd: key, count: 1, firstAt: at, lastAt: at } satisfies StudyDayRecord)
+  }
+  await putSetting(flagKey, true)
+}
+
+/** きょうスタンプが付いているか */
+export async function hasStudiedToday(profileId: string): Promise<boolean> {
+  return (await dbGet<StudyDayRecord>('studyDays', [profileId, todayYmd()])) != null
+}
+
 // ---------------- Settings ----------------
 export async function getSetting<T>(key: string): Promise<T | undefined> {
   const rec = await dbGet<SettingsRecord>('settings', key)
@@ -494,6 +612,7 @@ export async function clearAllStores(): Promise<void> {
     'diaryEntries',
     'myWords',
     'activityFeed',
+    'studyDays',
     'settings',
   ] as const
   for (const s of stores) await dbClear(s)
