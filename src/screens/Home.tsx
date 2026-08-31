@@ -7,7 +7,7 @@ import { RankBadge, RankListModal } from '../ui/RankBadge'
 import { evolutionInfo, normalizeOwned } from '../game/logic'
 import { CharacterSprite } from '../game/sprites'
 import { useAsyncData } from '../state/hooks'
-import { bumpData, navigate, useAppState } from '../state/store'
+import { navigate, useAppState } from '../state/store'
 import {
   alphabetMasteryCounts,
   backfillStudyDays,
@@ -21,7 +21,8 @@ import {
   takePendingStreakBonus,
 } from '../storage/repo'
 import type { StreakBonus } from '../game/streak'
-import { Button, Card, ExpBar, LoadingView, Modal, StatusChips } from '../ui/components'
+import { Button, Card, ExpBar, LoadingView, StatusChips } from '../ui/components'
+import { StreakBonusModal } from '../ui/StreakBonusModal'
 import { StudyCalendar } from '../ui/StudyCalendar'
 import { SoundButton } from '../ui/SoundButton'
 
@@ -33,9 +34,7 @@ export function Home() {
   useEffect(() => {
     if (!profileId) return
     void takePendingStreakBonus(profileId).then((list) => {
-      if (list.length === 0) return
-      setBonuses(list)
-      bumpData()
+      if (list.length > 0) setBonuses(list)
     })
   }, [profileId])
   const { data } = useAsyncData(async () => {
@@ -254,19 +253,7 @@ export function Home() {
           </Card>
         </div>
       </div>
-      <Modal open={bonuses.length > 0} onClose={() => setBonuses([])}>
-        <div className="streak-bonus-modal">
-          <p className="streak-bonus-emoji">🎉</p>
-          {bonuses.map((b, i) => (
-            <p key={`${b.streak}-${i}`} className="streak-bonus-line">
-              <span className="streak-bonus-label">{b.label}</span>
-              <span className="streak-bonus-coins">＋{b.coins} コイン</span>
-            </p>
-          ))}
-          <p className="streak-bonus-sub">よく つづけたね！ この ちょうしで いこう</p>
-          <Button onClick={() => setBonuses([])}>やったー！</Button>
-        </div>
-      </Modal>
+      <StreakBonusModal profileId={profileId} bonuses={bonuses} onClose={() => setBonuses([])} />
       <RankListModal open={showRanks} perfectCount={achievementCount} onClose={() => setShowRanks(false)} />
     </div>
   )

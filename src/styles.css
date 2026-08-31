@@ -4569,3 +4569,26 @@ body {
   color: var(--muted);
   text-align: center;
 }
+
+/* れんぞくボーナスの受け取り: 手持ちコインが増えるところを見せる（第32回） */
+.streak-bonus-wallet {
+  margin: 4px 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.streak-bonus-wallet-num {
+  font-size: 34px;
+  font-weight: 900;
+  color: var(--accent-dark);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.streak-bonus-wallet-label {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--muted);
+}

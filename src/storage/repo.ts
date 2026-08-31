@@ -515,7 +515,8 @@ async function markStudiedInner(profileId: string, at: number): Promise<void> {
   if (milestone) earned.push(milestone)
   if (earned.length === 0) return
 
-  for (const b of earned) await addCoins(profileId, b.coins, `${b.label}ボーナス`)
+  // コインは「ホームでうけとる！を押した瞬間」に足す（第32回）。
+  // 先に足してしまうと、受け取り画面で数字が動かず、本当に入ったのか分からない
   if (milestone) {
     const profile = await getProfile(profileId)
     if (profile) {
