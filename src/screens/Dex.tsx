@@ -1,6 +1,7 @@
 ﻿// なかまずかん（仕様 §26, §27）。未発見はシルエット＋？？？。進化先は先に見せない。
 import { useState } from 'react'
 import { RARITY_LABEL, SPECIES, getSpecies, totalDexEntries } from '../data/species'
+import { GAME_CONFIG } from '../config/gameConfig'
 import { CharacterSprite } from '../game/sprites'
 import { useAsyncData } from '../state/hooks'
 import { useAppState } from '../state/store'
@@ -39,18 +40,23 @@ export function Dex() {
               <span className="dex-line-name">{sp.lineName}</span>
               <span className={`rarity rarity-${sp.rarity}`}>{RARITY_LABEL[sp.rarity]}</span>
             </div>
+            {/* しんかの ながれが 一目で わかるよう、レベルと 矢印を いれる（第31回） */}
             <div className="dex-stages">
               {sp.stages.map((st, stageIdx) => {
                 const key = `${sp.id}:${stageIdx}`
                 const found = discovered.has(key)
+                const atLevel = stageIdx === 0 ? 1 : (GAME_CONFIG.levels.evolveAtLevels[stageIdx - 1] ?? null)
                 return (
-                  <div
-                    key={key}
-                    className={`dex-cell ${found ? 'dex-found card-tap' : 'dex-hidden'}`}
-                    onClick={found ? () => setDetail({ speciesId: sp.id, stage: stageIdx }) : undefined}
-                  >
-                    <CharacterSprite speciesId={sp.id} stage={stageIdx} size={72} silhouette={!found} />
-                    <span className="dex-name">{found ? st.name : '？？？'}</span>
+                  <div className="dex-step" key={key}>
+                    {stageIdx > 0 && <span className="dex-arrow" aria-hidden>→</span>}
+                    <div
+                      className={`dex-cell ${found ? 'dex-found card-tap' : 'dex-hidden'}`}
+                      onClick={found ? () => setDetail({ speciesId: sp.id, stage: stageIdx }) : undefined}
+                    >
+                      {atLevel != null && <span className="dex-lv">Lv.{atLevel}</span>}
+                      <CharacterSprite speciesId={sp.id} stage={stageIdx} size={72} silhouette={!found} />
+                      <span className="dex-name">{found ? st.name : '？？？'}</span>
+                    </div>
                   </div>
                 )
               })}

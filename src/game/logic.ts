@@ -28,6 +28,8 @@ export interface ExpGrantEvents {
   evolvedFrom: string | null
   evolvedTo: string | null
   newStage: number | null
+  /** 通過した進化段階すべて（まとめてスターをあげて何段も進化したとき。第31回） */
+  stagesGained: number[]
   speciesId: string
 }
 
@@ -121,9 +123,11 @@ export async function grantExpToOwned(
   await saveOwned(owned)
 
   let evolvedTo: string | null = null
+  const stagesGained: number[] = []
   if (stageChanged) {
     evolvedTo = species.stages[stage].name
     for (let s = oldStage + 1; s <= stage; s++) {
+      stagesGained.push(s)
       await discoverDex(profile.id, owned.speciesId, s)
     }
     await addActivity(profile.id, profile.name, 'evolve', `${profile.name}の ${oldStageName}が ${evolvedTo}に しんかした！`)
@@ -138,6 +142,7 @@ export async function grantExpToOwned(
     evolvedFrom: stageChanged ? oldStageName : null,
     evolvedTo,
     newStage: stageChanged ? stage : null,
+    stagesGained,
     speciesId: owned.speciesId,
   }
 }

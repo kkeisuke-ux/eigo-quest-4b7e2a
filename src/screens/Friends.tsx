@@ -32,13 +32,16 @@ export function Friends() {
     showToast('いっしょに べんきょうする なかまを かえたよ')
   }
 
+  // 1回で買える上限。多すぎる数を一度に押しても困らないよう999で頭打ちにする（第31回）
+  const maxBuyable = Math.min(999, Math.floor(profile.coins / GAME_CONFIG.star.cost))
+
   const onBuyStars = async (count: number) => {
     const res = await buyStars(profile.id, count)
     bumpData()
     showToast(res.ok ? (count === 1 ? 'スターを かった！' : `スターを ${count}こ かった！`) : 'コインが たりないよ')
   }
 
-  // count=1で1こ、count=5でまとめて（持っている数まで。第22回）
+  // count=1で1こ、まとめてもOK（持っている数まで。第22回／第31回で演出を段ごとに分割）
   const onUseStar = async (ownedId: number, count: number) => {
     const res = await useStars(profile.id, ownedId, count)
     bumpData()
@@ -70,6 +73,13 @@ export function Friends() {
             </Button>
             <Button variant="secondary" onClick={() => void onBuyStars(5)} disabled={profile.coins < GAME_CONFIG.star.cost * 5}>
               5こ かう（{GAME_CONFIG.star.cost * 5}コイン）
+            </Button>
+            <Button variant="secondary" onClick={() => void onBuyStars(50)} disabled={profile.coins < GAME_CONFIG.star.cost * 50}>
+              50こ かう（{GAME_CONFIG.star.cost * 50}コイン）
+            </Button>
+            {/* コインが たまってくると 1こずつでは 追いつかないので「かえるだけ」を用意する（第31回） */}
+            <Button variant="accent" onClick={() => void onBuyStars(maxBuyable)} disabled={maxBuyable <= 0}>
+              かえるだけ かう（{maxBuyable}こ・{maxBuyable * GAME_CONFIG.star.cost}コイン）
             </Button>
           </div>
         </Card>
@@ -116,8 +126,12 @@ export function Friends() {
                       <Button size="sm" variant="accent" onClick={() => void onUseStar(o.id!, 1)} disabled={profile.stars <= 0}>
                         スターを つかう
                       </Button>
-                      <Button size="sm" variant="accent" onClick={() => void onUseStar(o.id!, 5)} disabled={profile.stars < 5}>
-                        5こ まとめて
+                      <Button size="sm" variant="accent" onClick={() => void onUseStar(o.id!, 10)} disabled={profile.stars < 1}>
+                        10こ まとめて
+                      </Button>
+                      {/* レベル99まではスターが たくさん いるので、まとめて つかえるようにする（第31回） */}
+                      <Button size="sm" variant="accent" onClick={() => void onUseStar(o.id!, profile.stars)} disabled={profile.stars < 1}>
+                        ぜんぶ つかう（{profile.stars}こ）
                       </Button>
                     </div>
                   </div>

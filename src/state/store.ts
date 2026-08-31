@@ -5,6 +5,7 @@ export type AlphabetKind = 'upper' | 'lower'
 
 export type Route =
   | { name: 'profiles' }
+  | { name: 'tutorial' }
   | { name: 'home' }
   | { name: 'alphabet' }
   | { name: 'alphabetLearn'; kind: AlphabetKind; startIndex?: number; letters?: string[] }
@@ -63,7 +64,8 @@ export interface AppState {
   soundVersion: number
   toasts: ToastItem[]
   coinFx: CoinFxItem[]
-  pendingEvolution: PendingEvolution | null
+  /** 進化演出の待ち行列。まとめてスターをあげたとき、姿が変わるたびに1つずつ見せる（第31回） */
+  pendingEvolutions: PendingEvolution[]
   /** レベルアップ演出のキュー（進化がないレベルアップ用。第22回） */
   pendingLevelUp: PendingLevelUp | null
 }
@@ -75,7 +77,7 @@ let state: AppState = {
   soundVersion: 0,
   toasts: [],
   coinFx: [],
-  pendingEvolution: null,
+  pendingEvolutions: [],
   pendingLevelUp: null,
 }
 
@@ -132,8 +134,18 @@ export function showToast(text: string) {
   }, 2600)
 }
 
-export function setPendingEvolution(p: PendingEvolution | null) {
-  setState({ pendingEvolution: p })
+export function pushEvolutions(list: PendingEvolution[]) {
+  if (list.length === 0) return
+  setState({ pendingEvolutions: [...state.pendingEvolutions, ...list] })
+}
+
+/** 先頭の演出を見おわった（次があれば続けて見せる） */
+export function shiftEvolution() {
+  setState({ pendingEvolutions: state.pendingEvolutions.slice(1) })
+}
+
+export function clearEvolutions() {
+  setState({ pendingEvolutions: [] })
 }
 
 export function setPendingLevelUp(p: PendingLevelUp | null) {

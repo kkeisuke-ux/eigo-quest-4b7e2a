@@ -4,6 +4,8 @@
 import type { ReactNode } from 'react'
 import { getSpecies, type Look } from '../data/species'
 
+// 段階が6つになったので線形に大きくすると枠(120x128)からはみ出す。頭打ちのある表にする（第31回）
+const STAGE_RADIUS = [24, 28, 32, 34, 36, 38]
 const SIL = '#4a4460'
 
 function starPath(cx: number, cy: number, R: number, r: number): string {
@@ -128,6 +130,83 @@ function extraShapes(look: Look, d: DrawCtx, layer: 'back' | 'front'): ReactNode
             {!sil && <circle cx={cx + R * 0.72 + 4.5} cy={topY} r={8} fill={look.c1} />}
           </g>
         )
+      } else if (ex === 'aura') {
+        // 高レベルの光のオーラ（第57回）。二重の輪でハッキリ「格が上がった」と分かるようにする
+        out.push(
+          <g key={key} fill="none">
+            <circle cx={cx} cy={cy} r={R + 9} stroke={sil ? SIL : c2} strokeWidth={3} opacity={0.55} />
+            <circle cx={cx} cy={cy} r={R + 15} stroke={sil ? SIL : c2} strokeWidth={1.8} opacity={0.32} />
+          </g>
+        )
+      } else if (ex === 'orbit') {
+        out.push(
+          <g key={key}>
+            <ellipse
+              cx={cx}
+              cy={cy}
+              rx={R + 17}
+              ry={(R + 17) * 0.36}
+              fill="none"
+              stroke={sil ? SIL : gold}
+              strokeWidth={3}
+              opacity={0.85}
+              transform={`rotate(-18 ${cx} ${cy})`}
+            />
+            <circle cx={cx - R - 15} cy={cy + 5} r={3.6} fill={sil ? SIL : gold} />
+            <circle cx={cx + R + 15} cy={cy - 5} r={3.2} fill={sil ? SIL : gold} />
+          </g>
+        )
+      } else if (ex === 'bigWings') {
+        out.push(
+          <g key={key} fill={c2} opacity={0.95}>
+            <path d={`M${cx - R + 2},${cy - 4} q-22,-16 -30,-2 q10,3 12,10 q-10,1 -13,8 q16,6 31,-4 Z`} />
+            <path d={`M${cx + R - 2},${cy - 4} q22,-16 30,-2 q-10,3 -12,10 q10,1 13,8 q-16,6 -31,-4 Z`} />
+          </g>
+        )
+      } else if (ex === 'cape') {
+        // 体の後ろにマント。体より外へ大きくはみ出させないと、小さい表示では見えない
+        out.push(
+          <g key={key}>
+            <path
+              d={`M${cx - R * 0.7},${cy - R * 0.55} L${cx - R * 1.5},${cy + R * 1.2} L${cx + R * 1.5},${cy + R * 1.2} L${cx + R * 0.7},${cy - R * 0.55} Z`}
+              fill={sil ? SIL : c2}
+              stroke={sil ? SIL : look.c1}
+              strokeWidth={2.4}
+              strokeLinejoin="round"
+              opacity={0.95}
+            />
+            <path
+              d={`M${cx - R * 0.72},${cy - R * 0.55} q${R * 0.72},${R * 0.34} ${R * 1.44},0`}
+              fill="none"
+              stroke={sil ? SIL : look.c1}
+              strokeWidth={5}
+              strokeLinecap="round"
+            />
+          </g>
+        )
+      } else if (ex === 'mane') {
+        out.push(
+          <g key={key} fill={c2} opacity={0.95}>
+            {Array.from({ length: 12 }, (_, i) => {
+              const a = (Math.PI * 2 * i) / 12
+              return <circle key={i} cx={cx + (R + 5) * Math.cos(a)} cy={cy + (R + 5) * Math.sin(a)} r={6.5} />
+            })}
+          </g>
+        )
+      } else if (ex === 'flame') {
+        out.push(
+          <g key={key} fill={sil ? SIL : '#f4863a'} opacity={0.9}>
+            <path d={`M${cx - R - 4},${cy + R * 0.5} q-3,-14 5,-20 q-2,10 6,14 q-2,8 -11,6 Z`} />
+            <path d={`M${cx + R + 4},${cy + R * 0.5} q3,-14 -5,-20 q2,10 -6,14 q2,8 11,6 Z`} />
+          </g>
+        )
+      } else if (ex === 'thunder') {
+        out.push(
+          <g key={key} fill={sil ? SIL : '#ffd23f'} stroke={sil ? SIL : '#e0a815'} strokeWidth={1}>
+            <path d={`M${cx - R - 12},${cy - 14} l7,0 l-4,8 l6,0 l-11,15 l3,-11 l-6,0 Z`} />
+            <path d={`M${cx + R + 5},${cy - 16} l7,0 l-4,8 l6,0 l-11,15 l3,-11 l-6,0 Z`} />
+          </g>
+        )
       }
     } else {
       if (ex === 'brushTuft') {
@@ -239,6 +318,19 @@ function extraShapes(look: Look, d: DrawCtx, layer: 'back' | 'front'): ReactNode
             <path d={`M${cx + R + 10},${cy} q-6,-6 -12,0 q6,5 10,2`} />
           </g>
         )
+      } else if (ex === 'gem') {
+        // ひたいの宝石。小さいが「特別なすがた」の目印としてよく効く（第57回）
+        out.push(
+          <g key={key}>
+            <path
+              d={`M${cx},${topY + 3} L${cx + 5},${topY + 9} L${cx},${topY + 16} L${cx - 5},${topY + 9} Z`}
+              fill={sil ? SIL : '#6fe3ff'}
+              stroke={sil ? SIL : '#2aa5c9'}
+              strokeWidth={1.2}
+            />
+            {!sil && <path d={`M${cx - 1.6},${topY + 7} L${cx + 1},${topY + 9.5} L${cx - 1.6},${topY + 12} Z`} fill="#ffffff" opacity={0.8} />}
+          </g>
+        )
       }
     }
   }
@@ -335,7 +427,7 @@ export function CharacterSprite({
   if (!species) return null
   const clamped = Math.min(Math.max(stage, 0), species.stages.length - 1)
   const look = species.stages[clamped].look
-  const R = 24 + clamped * 4
+  const R = STAGE_RADIUS[Math.min(clamped, STAGE_RADIUS.length - 1)]
   const d: DrawCtx = {
     c1: silhouette ? SIL : look.c1,
     c2: silhouette ? SIL : look.c2,

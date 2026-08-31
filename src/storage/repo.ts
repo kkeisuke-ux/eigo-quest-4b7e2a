@@ -584,6 +584,17 @@ export async function hasStudiedToday(profileId: string): Promise<boolean> {
   return (await dbGet<StudyDayRecord>('studyDays', [profileId, todayYmd()])) != null
 }
 
+// ---------------- はじめてのチュートリアル（第31回） ----------------
+const TUTORIAL_KEY = (profileId: string) => `tutorialDone:${profileId}`
+
+export async function isTutorialDone(profileId: string): Promise<boolean> {
+  return (await getSetting<boolean>(TUTORIAL_KEY(profileId))) === true
+}
+
+export async function markTutorialDone(profileId: string): Promise<void> {
+  await putSetting(TUTORIAL_KEY(profileId), true)
+}
+
 // ---------------- Settings ----------------
 export async function getSetting<T>(key: string): Promise<T | undefined> {
   const rec = await dbGet<SettingsRecord>('settings', key)

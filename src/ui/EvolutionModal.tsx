@@ -1,23 +1,34 @@
 // 進化演出（仕様 §24）。現在の姿 → 光 → 新しい姿。タップでスキップ可能。
 import { useEffect, useState } from 'react'
-import { setPendingEvolution, useAppState, type PendingEvolution } from '../state/store'
+import { pushEvolutions, shiftEvolution, useAppState, type PendingEvolution } from '../state/store'
+import { getSpecies } from '../data/species'
 import { CharacterSprite } from '../game/sprites'
 import { Button } from './components'
 import type { ExpGrantEvents } from '../game/logic'
 
+/**
+ * 進化演出を積む。まとめてスターをあげて何段も進化したときは、
+ * 1段ずつ見せる（第31回）。まとめてやると変身が見られないのは、
+ * 育てる いちばんの たのしみを 失うため。
+ */
 export function queueEvolutionFromEvents(ev: ExpGrantEvents | null | undefined) {
   if (!ev || !ev.evolvedTo || ev.newStage == null) return
-  setPendingEvolution({
-    speciesId: ev.speciesId,
-    fromStage: ev.newStage - 1,
-    toStage: ev.newStage,
-    fromName: ev.evolvedFrom ?? '',
-    toName: ev.evolvedTo,
-  })
+  const sp = getSpecies(ev.speciesId)
+  const stages = ev.stagesGained.length > 0 ? ev.stagesGained : [ev.newStage]
+  pushEvolutions(
+    stages.map((to) => ({
+      speciesId: ev.speciesId,
+      fromStage: to - 1,
+      toStage: to,
+      fromName: sp?.stages[to - 1]?.name ?? ev.evolvedFrom ?? '',
+      toName: sp?.stages[to]?.name ?? ev.evolvedTo ?? '',
+    }))
+  )
 }
 
 export function EvolutionModal() {
-  const pending = useAppState((s) => s.pendingEvolution)
+  const queue = useAppState((s) => s.pendingEvolutions)
+  const pending = queue[0] ?? null
   const [phase, setPhase] = useState<'before' | 'flash' | 'after'>('before')
   const [current, setCurrent] = useState<PendingEvolution | null>(null)
 
@@ -68,7 +79,7 @@ export function EvolutionModal() {
             <p className="evo-text evo-text-big">
               {current.fromName}は {current.toName}に しんかした！
             </p>
-            <Button onClick={() => setPendingEvolution(null)}>やったー！</Button>
+            <Button onClick={() => shiftEvolution()}>{queue.length > 1 ? `つぎへ（あと ${queue.length - 1}）` : 'やったー！'}</Button>
           </div>
         )}
       </div>
