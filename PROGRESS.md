@@ -1,5 +1,33 @@
 # えいごクエスト PROGRESS
 
+## 2026-09-22 第41回（アプリを閉じても音楽が鳴りつづける不具合）※かんじクエスト第64回と同じ
+
+要望: 「アプリを閉じても、バックグラウンドを閉じても、電源をオフにしても音楽が鳴っている」
+
+### 原因
+画面が裏に回ったときの処理が一つも無かった。iOSのホーム画面アプリは、音が鳴っている間は
+裏に回ってもページが止められないため、ファイルBGM（HTMLAudioElement→Web Audio）と
+AudioContextが動き続け、ホームに戻る・画面ロック・アプリ切り替えのどれでも鳴りっぱなしだった。
+
+### 修正（`src/audio/sound.ts` の `initBackgroundMute`、`src/main.tsx` から起動）
+- 裏に回ったら（`visibilitychange` hidden／`pagehide`／ウィンドウの `blur`）BGMと英語の発音
+  （`stopSpeaking`）を止め、AudioContextを `suspend()`。ducking の数も0に戻す
+  （発音を途中で止めると終了通知が来ず、戻ったときBGMが下がったままになるため）
+- 前面に戻ったら（visible／`pageshow`／`focus`）BGMがオンなら再開
+- 裏に回っている間は `ac()`・効果音・`startBgm()`・`speak()` が何も鳴らさない
+- 復帰の合図を取りこぼしても、次のタップで必ず前面扱いに戻る
+- ファイルBGMを止めるときは `src` を外して `load()` し要素を手放す（iOSはpauseしただけの
+  要素をロック画面の「再生中」に残し、そこから再生できてしまうため）。
+  これに伴い、要素の `error` は「今鳴らしている要素」のときだけ「ファイルが無い」扱いにした
+  （手放した要素のエラーで合成BGMへ切り替わらないように）
+- iOSは復帰時に `interrupted` になることがあるため、resume条件を `running` 以外すべてに広げた
+
+### 検証（Playwright・devサーバー）
+hidden→visible、blur→focus、pagehide→pageshow、blur後にfocusが来ない→タップ、の4系統で、
+裏に回すと AudioContext=suspended・再生中のaudio要素0（src解放）、戻すと running・
+bgm-home.mp3 を再生。自動再生で拒否された起動直後の要素も src 解放後に合成BGMへ落ちず、
+タップでファイルBGMが鳴ることを確認。実機iPadでの確認は未実施。
+
 ## 2026-09-06 第40回（レベルは積み上げ式へ・飛び級テスト・れんぞくボーナス大幅増）※かんじクエスト第63回と同じ
 
 かんじクエスト第63回と同じ仕組みを移植。えいごは学年ではなく**レベル（小1相当〜中3相当）**単位。

@@ -4,7 +4,7 @@
 // - AudioProvider構造: 将来 public/audio/voice/ の録音ファイルへ差し替えられる。
 //   現在は SpeechSynthesis（ブラウザTTS）実装のみ。README「発音音声について」参照。
 import { getAppFlags } from '../config/appFlags'
-import { duckBgm, getVoiceOutput } from './sound'
+import { duckBgm, getVoiceOutput, isBackgrounded } from './sound'
 import voiceManifestJson from '../data/voiceManifest.json'
 
 export type SpeechKind = 'letter' | 'word' | 'sentence'
@@ -312,6 +312,8 @@ let seq = 0
 /** 発音の共通入口。連続呼び出し時は最後の呼び出しだけが生きる */
 export async function speak(text: string, kind: SpeechKind): Promise<void> {
   const my = ++seq
+  // 裏に回っている間は話さない（第41回。閉じたのに声が出るのを防ぐ）
+  if (isBackgrounded()) return
   // 大文字1文字を渡すとTTSが「capital A」と読むことがあるため、
   // 文字名の発音は小文字で渡す（"a" → 「エイ」とだけ読む）
   const spoken = kind === 'letter' ? text.toLowerCase() : text

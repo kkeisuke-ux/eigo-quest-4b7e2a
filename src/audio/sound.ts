@@ -24,6 +24,8 @@ let fileBgmBus: GainNode | null = null
 let voiceBus: GainNode | null = null
 /** 内蔵発音の増幅係数（Web Audioは1超の増幅が可能。TTSより大きく鳴らせる） */
 const VOICE_FILE_GAIN = 1.3
+/** アプリが裏に回っている（ホーム・画面ロック・アプリ切り替え）間はtrue。第41回 */
+let backgrounded = false
 
 function makeImpulse(c: AudioContext): AudioBuffer {
   const len = Math.floor(c.sampleRate * 0.9)
@@ -64,7 +66,9 @@ function ac(): AudioContext | null {
     voiceBus.connect(ctx.destination)
     applyVolumesToBuses()
   }
-  if (ctx.state === 'suspended') void ctx.resume()
+  // 裏に回っている間は起こさない（第41回）。iOSは復帰時に 'interrupted' になることがあるので
+  // running 以外はまとめて起こす
+  if (!backgrounded && ctx.state !== 'running' && ctx.state !== 'closed') void ctx.resume()
   return ctx
 }
 
@@ -254,7 +258,7 @@ function seEnabled(): boolean {
 const N = (semi: number, base = 523.25) => base * Math.pow(2, semi / 12) // C5基準
 
 function seCtx(name: SeName): AudioContext | null {
-  if (!seEnabled()) return null
+  if (!seEnabled() || backgrounded) return null
   if (playFileSe(name)) return null // ファイル再生できたら合成しない
   return ac()
 }
@@ -543,13 +547,18 @@ function startSynthBgm() {
 
 function stopFileBgm() {
   if (fileBgm) {
-    fileBgm.el.pause()
+    const { el, node } = fileBgm
+    fileBgm = null
+    el.pause()
     try {
-      fileBgm.node.disconnect()
+      node.disconnect()
     } catch {
       // すでに切断済みなら無視
     }
-    fileBgm = null
+    // 音源を外して手放す。iOSはpauseしただけの要素をロック画面の「再生中」に残し、
+    // そこから再生できてしまうため（第41回）
+    el.removeAttribute('src')
+    el.load()
   }
 }
 
@@ -571,11 +580,11 @@ function tryStartFileBgm(scene: BgmScene): boolean {
     return false
   }
   el.addEventListener('error', () => {
+    // 止めて手放した要素（stopFileBgmでsrcを外す）のエラーは「ファイルが無い」扱いにしない
+    if (fileBgm?.el !== el) return
     bgmFileMissing.add(scene)
-    if (fileBgm?.el === el) {
-      stopFileBgm()
-      if (getAppFlags().bgmOn) startSynthBgm()
-    }
+    stopFileBgm()
+    if (getAppFlags().bgmOn) startSynthBgm()
   })
   // 第18回: 起動直後（ユーザー操作の外）のplay()は自動再生ポリシーでrejectされる。
   // ここで握りつぶしたまま「再生中」扱いにするとstartBgm()が以後早期リターンし、
@@ -595,6 +604,7 @@ function tryStartFileBgm(scene: BgmScene): boolean {
 }
 
 export function startBgm() {
+  if (backgrounded) return // 裏に回っている間は鳴らし始めない
   const c = ac()
   if (!c) return
   if (playingScene === currentScene && (bgmTimer != null || fileBgm != null)) {
@@ -668,6 +678,8 @@ export function initSoundOnGesture() {
   // 音源ファイルの存在チェックを開始（あれば以後ファイルを再生）
   ;(Object.keys(SE_FILES) as SeName[]).forEach(tryLoadSe)
   const handler = () => {
+    // 触れている＝前面にいる。復帰の合図（focus等）を取りこぼしても、ここで必ず戻る
+    if (!document.hidden) backgrounded = false
     const c = ac()
     if (c) {
       try {
@@ -684,4 +696,55 @@ export function initSoundOnGesture() {
   for (const type of ['pointerdown', 'pointerup', 'click', 'touchend'] as const) {
     window.addEventListener(type, handler, { passive: true })
   }
+}
+
+// ---------------- アプリを閉じたら音を止める（第41回） ----------------
+// iOSのホーム画面アプリは、音が鳴っている間は裏に回ってもページが止められない。
+// BGMのタイマーもAudioContextも動き続けるため、ホームに戻る・画面ロック・
+// アプリ切り替え画面から消す、のどれをしても音楽が鳴りっぱなしになっていた。
+// 見えなくなった時点でBGMと発音を止めてAudioContextを眠らせ、戻ったら再開する。
+export function isBackgrounded(): boolean {
+  return backgrounded
+}
+
+function enterBackground(onHide?: () => void) {
+  if (backgrounded) return
+  backgrounded = true
+  stopBgm()
+  onHide?.()
+  // 発音を途中で止めると終了通知が来ないことがあり、戻ったときBGMが下がったままになる
+  duckCount = 0
+  applyVolumesToBuses()
+  if (ctx && ctx.state !== 'closed') void ctx.suspend().catch(() => undefined)
+}
+
+function leaveBackground() {
+  if (!backgrounded || document.hidden) return
+  backgrounded = false
+  // BGMがオンなら鳴らし直す（ac()がAudioContextを起こす）。起こせなかった場合も
+  // 次のタップでinitSoundOnGestureのハンドラが再試行する
+  syncBgm()
+}
+
+/**
+ * 裏に回ったら音を止め、前面に戻ったら再開する。
+ * onHide: 音と一緒に止めたいもの（英語の発音など）
+ */
+export function initBackgroundMute(onHide?: () => void) {
+  if (typeof document === 'undefined') return
+  const hide = () => enterBackground(onHide)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) hide()
+    else leaveBackground()
+  })
+  window.addEventListener('pagehide', hide)
+  window.addEventListener('pageshow', leaveBackground)
+  // アプリ切り替え画面では visibilitychange が来ないまま終了させられることがあるため、
+  // ウィンドウがフォーカスを失った時点でも止める
+  window.addEventListener('blur', (e) => {
+    if (e.target === window) hide()
+  })
+  window.addEventListener('focus', (e) => {
+    if (e.target === window) leaveBackground()
+  })
 }
