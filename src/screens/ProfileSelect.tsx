@@ -1,7 +1,12 @@
 // プロフィール選択（起動画面）。最大5人、データは完全分離（仕様 §52）。
 import { useState } from 'react'
 import { setStrictnessRuntime } from '../config/judgeRuntime'
-import { perfectStageIds, perfectTermTestIds, stageClearLevelLabel } from '../data/words'
+import {
+  passedSkipLevels,
+  perfectStageIds,
+  perfectTermTestIds,
+  stageClearLevelLabel,
+} from '../data/words'
 import { useAsyncData } from '../state/hooks'
 import { bumpData, navigate, selectProfile } from '../state/store'
 import {
@@ -38,7 +43,8 @@ export function ProfileSelect() {
         return {
           profile: p,
           perfectCount: rankCountFor(perfectTermTestIds(results).size, alpha.upper, alpha.lower),
-          levelLabel: stageClearLevelLabel(perfectStageIds(results)),
+          // 第40回：下のレベルから積み上がったところまで。とびきゅうテスト合格ぶんも数える
+          levelLabel: stageClearLevelLabel(perfectStageIds(results), passedSkipLevels(results)),
           studyDays,
         }
       })

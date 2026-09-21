@@ -3183,6 +3183,23 @@ body {
   white-space: nowrap;
 }
 
+/* 先のレベルを先にクリアしているぶんのチップ（第40回） */
+.level-chip-extra {
+  background: #f3eeff;
+  color: #5b3f9e;
+  border-color: #ddd0f7;
+}
+
+/* とびきゅうテストのカード（第40回）。ふつうのまとめテストと見分けがつくように */
+.skiptest-card {
+  border: 2px solid #f0c987;
+  background: linear-gradient(135deg, #fffaf0, #fdf0dc);
+}
+
+.skiptest-card.termtest-card-perfect {
+  border-color: #e2b45c;
+}
+
 /* 絵日記一覧: 手書き英文のサムネイル（第13回） */
 .diary-thumb-text {
   border-top: 1px dashed #cfd8e6;

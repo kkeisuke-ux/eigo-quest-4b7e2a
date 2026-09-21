@@ -235,25 +235,139 @@ export function perfectStageIds(
   )
 }
 
+// ============================================================
+// 飛び級テスト（第40回）。
+// レベルは「小1相当から順に積み上がったところまで」を表すように変えた。
+// 先のレベルの5問テストを少し受けただけでレベルが飛ぶと、実力と表示がずれるため。
+// ただし もう先へ進んでいる子に 小1相当から全部やり直させるのは重いので、
+// 「そのレベルの単語から20問ぜんぶ正解」できれば そのレベルを通過ずみにする。
+// ============================================================
+export interface SkipTestDef {
+  id: string
+  levelId: string
+  /** 「小1 とびきゅうテスト」 */
+  label: string
+  levelLabel: string
+  /** 出題もとの単語（ここからランダムに20問） */
+  wordIds: string[]
+}
+
+/** レベル名は「小1相当」→「小1」に詰める（チップやカードが長くならないように） */
+export function shortLevelLabel(label: string): string {
+  return label.replace('相当', '')
+}
+
+export const SKIP_TESTS: SkipTestDef[] = LEVELS.filter((lv) => lv.terms.length > 0).map((lv) => ({
+  id: `skip-${lv.id}`,
+  levelId: lv.id,
+  label: `${shortLevelLabel(lv.label)} とびきゅうテスト`,
+  levelLabel: shortLevelLabel(lv.label),
+  wordIds: lv.terms.flatMap((t) => t.stages.flatMap((s) => s.wordIds)),
+}))
+
+export function findSkipTest(id: string): SkipTestDef | null {
+  return SKIP_TESTS.find((t) => t.id === id) ?? null
+}
+
 /**
- * ステージテスト100点の到達レベル表示（第25回。第26回でルール変更）。
- * 「その学期の全ステージでテスト100点」を満たす学期のうち、いちばん上のレベル・学期を返す。
- * 下のレベルが終わっているかは問わない。例:「小1 1学期」。1学期も完了していなければnull。
+ * 飛び級テストに合格ずみのレベル。合格は「ぜんぶ正解」のみ（部分点では通さない）。
+ * 何度でも受けられるので、1回でも満点があれば合格あつかい。
  */
-export function stageClearLevelLabel(perfect: Set<string>): string | null {
-  // レベル名は「小1相当」→「小1」に詰めて表示する（チップが長くならないように）
-  const fmt = (level: WordLevelDef, index: number) =>
-    `${level.label.replace('相当', '')} ${termLabel(index)}`
+export function passedSkipLevels(
+  results: { kind: string; targetId: string; total: number; correct: number }[]
+): Set<string> {
+  const out = new Set<string>()
+  for (const r of results) {
+    if (r.kind !== 'skip' || r.total <= 0 || r.correct !== r.total) continue
+    const t = findSkipTest(r.targetId)
+    if (t) out.add(t.levelId)
+  }
+  return out
+}
+
+/** そのレベルの全ステージが5問テスト100点で埋まっているか（＝飛び級テストなしで通過ずみ） */
+function levelFilledByStages(level: WordLevelDef, perfect: Set<string>): boolean {
+  const stages = level.terms.flatMap((t) => t.stages)
+  return stages.length > 0 && stages.every((s) => perfect.has(s.id))
+}
+
+const fmtLevel = (level: WordLevelDef, index: number) =>
+  `${shortLevelLabel(level.label)} ${termLabel(index)}`
+
+/**
+ * ステージテスト100点の到達レベル表示（第25回、第40回でルール変更）。
+ * **小1相当から切れ目なくつながっているところまで**を返す。
+ * 飛び級テスト合格ずみ、または全ステージ100点のレベルは通過ずみとして飛ばして先へ進む。
+ * 例:「小1 1学期」。1学期も完了していなければnull。
+ */
+export function stageClearLevelLabel(perfect: Set<string>, passedLevels?: Set<string>): string | null {
+  const passed = passedLevels ?? new Set<string>()
+  let best: { level: WordLevelDef; index: number } | null = null
+  for (const level of LEVELS) {
+    if (level.terms.length === 0) continue
+    if (passed.has(level.id) || levelFilledByStages(level, perfect)) {
+      const last = [...level.terms].reverse().find((t) => t.stages.length > 0)
+      if (last) best = { level, index: last.index }
+      continue
+    }
+    for (const term of level.terms) {
+      if (term.stages.length === 0) continue
+      if (!term.stages.every((st) => perfect.has(st.id))) return best ? fmtLevel(best.level, best.index) : null
+      best = { level, index: term.index }
+    }
+  }
+  return best ? fmtLevel(best.level, best.index) : null
+}
+
+/**
+ * 積み上げの先で、とびとびに完了している学期の数。
+ * レベルは連続ぶんだけを表すが、飛ばした先でがんばった分が消えたように見えると
+ * やる気を削ぐので、「ほかにクリア ○」として別に見せる。
+ */
+export function extraClearedTermCount(perfect: Set<string>, passedLevels?: Set<string>): number {
+  if (stageClearLevelLabel(perfect, passedLevels) == null) return countClearedTerms(perfect)
+  const passed = passedLevels ?? new Set<string>()
+  let inRow = 0
+  outer: for (const level of LEVELS) {
+    if (level.terms.length === 0) continue
+    if (passed.has(level.id) || levelFilledByStages(level, perfect)) {
+      inRow += level.terms.filter((t) => t.stages.length > 0 && t.stages.every((s) => perfect.has(s.id))).length
+      continue
+    }
+    for (const term of level.terms) {
+      if (term.stages.length === 0) continue
+      if (!term.stages.every((st) => perfect.has(st.id))) break outer
+      inRow++
+    }
+  }
+  return Math.max(0, countClearedTerms(perfect) - inRow)
+}
+
+function countClearedTerms(perfect: Set<string>): number {
+  let n = 0
+  for (const level of LEVELS) {
+    for (const term of level.terms) {
+      if (term.stages.length === 0) continue
+      if (term.stages.every((st) => perfect.has(st.id))) n++
+    }
+  }
+  return n
+}
+
+/**
+ * これまでのさいこう記録（第40回）。旧ルールと同じ「完了した学期のうち いちばん上」。
+ * ルールを積み上げに変えた日に表示が下がって見えるのを防ぐために残してある。
+ */
+export function bestClearLevelLabel(perfect: Set<string>): string | null {
   let best: { level: WordLevelDef; index: number } | null = null
   for (const level of LEVELS) {
     for (const term of level.terms) {
       if (term.stages.length === 0) continue
       if (!term.stages.every((st) => perfect.has(st.id))) continue
-      // LEVELSはレベル順・学期順なので、後に見つかったものほど上のレベル
       best = { level, index: term.index }
     }
   }
-  return best ? fmt(best.level, best.index) : null
+  return best ? fmtLevel(best.level, best.index) : null
 }
 
 /** 日本語から英単語を探す（「ことばを調べる」。仕様 §34） */

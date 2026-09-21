@@ -107,7 +107,7 @@ export function monthLabel(monthKey: string): string {
   return `${y}年 ${m}月`
 }
 
-// ---------------- れんぞくボーナス（第52回、第59回で増額） ----------------
+// ---------------- れんぞくボーナス（第52回、第59回・第40回で増額） ----------------
 export interface StreakBonus {
   /** 何日れんぞくで出たか */
   streak: number
@@ -134,6 +134,10 @@ export function dailyStreakCoins(streak: number): number {
  * 節目に出る、まとまったごほうび（毎日ぶんとは別に上のせ）。
  * 3日で最初の1回 → あとは7日ごとに増える → 30日ごとは特別に大きい。
  * 30は7の倍数ではないので、7日刻みとぶつからない。
+ *
+ * 第40回で大幅に増額した。1日ぶん（上限300）だけでは「1日あけても取り返せる」ため、
+ * 途切れたときに失うものが小さすぎた。節目を1週間ぶんの学習より大きくすることで、
+ * 「あと1日で7日め」がその日やる理由になる。
  */
 export function bonusForStreak(streak: number): StreakBonus | null {
   if (streak <= 0) return null
@@ -141,15 +145,15 @@ export function bonusForStreak(streak: number): StreakBonus | null {
     const months = streak / 30
     return {
       streak,
-      coins: 2000 + (months - 1) * 1000,
+      coins: 10000 + (months - 1) * 5000,
       label: months === 1 ? '1か月れんぞく' : `${months}か月れんぞく`,
     }
   }
   if (streak % 7 === 0) {
     const weeks = streak / 7
-    return { streak, coins: Math.min(2000, 300 + (weeks - 1) * 200), label: `${streak}日れんぞく` }
+    return { streak, coins: Math.min(8000, 1000 + (weeks - 1) * 500), label: `${streak}日れんぞく` }
   }
-  if (streak === 3) return { streak, coins: 100, label: '3日れんぞく' }
+  if (streak === 3) return { streak, coins: 300, label: '3日れんぞく' }
   return null
 }
 

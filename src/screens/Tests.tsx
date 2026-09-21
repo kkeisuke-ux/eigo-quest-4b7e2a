@@ -1,6 +1,8 @@
 // テスト画面のラッパー（5問テスト / まとめテスト）。実体は learn/TestRunner。
 import { useEffect } from 'react'
-import { findTermTest, getStageLocation } from '../data/words'
+import { findSkipTest, findTermTest, getStageLocation } from '../data/words'
+import { GAME_CONFIG } from '../config/gameConfig'
+import { shuffled } from '../core/geometry'
 import { TestRunner } from '../learn/TestRunner'
 import { useAppState } from '../state/store'
 import { putSetting } from '../storage/repo'
@@ -40,6 +42,27 @@ export function TermTestScreen({ termId }: { termId: string }) {
       kind="term"
       targetId={termId}
       wordIds={test.wordIds}
+      title={test.label}
+      backRoute={{ name: 'tests' }}
+    />
+  )
+}
+
+/**
+ * とびきゅうテスト（第40回）。そのレベルの単語から20問ランダムに出す。
+ * ぜんぶ正解しないと合格にしない（先のレベルに進んでよいことの確認なので、
+ * まぐれで通ると表示と実力がずれてしまう）。何回でも受けられる。
+ */
+export function SkipTestScreen({ skipId }: { skipId: string }) {
+  const test = findSkipTest(skipId)
+  useRememberLevel(test?.levelId)
+  if (!test) return <LoadingView label="テストが見つかりません" />
+  const wordIds = shuffled(test.wordIds).slice(0, GAME_CONFIG.skipTest.questionCount)
+  return (
+    <TestRunner
+      kind="skip"
+      targetId={skipId}
+      wordIds={wordIds}
       title={test.label}
       backRoute={{ name: 'tests' }}
     />

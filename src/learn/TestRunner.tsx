@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { GAME_CONFIG } from '../config/gameConfig'
 import { shuffled, type Pt } from '../core/geometry'
 import type { InkStroke } from '../core/ink/types'
-import { getWord } from '../data/words'
+import { findSkipTest, getWord } from '../data/words'
 import { awardStudy, checkMilestones, type ExpGrantEvents } from '../game/logic'
 import { playCorrect, playFinish, playPerfect, playWrong } from '../audio/sound'
 import { speakWord } from '../audio/tts'
@@ -48,7 +48,7 @@ import { JudgeMark } from '../ui/JudgeMark'
 import { SpeakButton } from '../ui/SpeakButton'
 
 export interface TestRunnerProps {
-  kind: 'stage' | 'term' | 'review'
+  kind: 'stage' | 'term' | 'review' | 'skip'
   targetId: string
   wordIds: string[]
   title: string
@@ -98,6 +98,8 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
   const busyRef = useRef(false)
   const moodTimerRef = useRef<number | null>(null)
   const testKey = `${kind}:${targetId}`
+  // 長いテスト（まとめ・とびきゅう）は途中保存して再開できる（第40回でとびきゅうを追加）
+  const isLong = kind === 'term' || kind === 'skip'
 
   const wordId = ids[index]
   const word = wordId ? getWord(wordId) : undefined
@@ -115,7 +117,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
       startMasteredRef.current = await masteredWordCount(profile.id)
       // 第21回: 5問テスト（stage）も途中保存・再開できるようにする（最初の問題からの
       // やり直しを避ける）。復習は出題が毎回変わるため対象外
-      if (kind !== 'review') {
+      if (isLong || kind === 'stage') {
         const session = await getTestSession(profile.id, testKey)
         if (!alive) return
         if (session && session.currentIndex > 0 && session.currentIndex < session.wordIds.length) {
@@ -211,11 +213,21 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
       ? GAME_CONFIG.coins.stageTestPerCorrect
       : kind === 'term'
         ? GAME_CONFIG.coins.termTestPerCorrect
-        : GAME_CONFIG.coins.reviewPerCorrect
+        : kind === 'skip'
+          ? GAME_CONFIG.skipTest.perCorrect
+          : GAME_CONFIG.coins.reviewPerCorrect
 
   const finish = async (finalItems: TestItemRecord[]) => {
     const correct = finalItems.filter((i) => i.result === 'correct').length
     const perfect = finalItems.length > 0 && correct === finalItems.length
+    // とびきゅうテスト: このレベルをこれまで何回受けたか／すでに合格ずみか（第40回）。
+    // 今回の結果を保存する前に数える
+    const priorSkip =
+      kind === 'skip'
+        ? (await listTestResults(profile.id)).filter((r) => r.kind === 'skip' && r.targetId === targetId)
+        : []
+    const alreadyPassed = priorSkip.some((r) => r.total > 0 && r.correct === r.total)
+    const firstPass = kind === 'skip' && perfect && !alreadyPassed
     // 称号ランクアップ判定: このまとめテストで「はじめての100点」なら1ランク上がる（第22回）
     if (kind === 'term' && perfect) {
       const [prior, alpha] = await Promise.all([listTestResults(profile.id), alphabetMasteryCounts(profile.id)])
@@ -235,32 +247,65 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
         items: finalItems,
       })
     }
-    // かんそうボーナス（点数に関係なく「最後までできた」を肯定する。仕様 §23）
-    const finishBonus = kind === 'term' ? GAME_CONFIG.coins.termTestFinishBonus : GAME_CONFIG.coins.stageTestFinishBonus
-    await awardStudy(profile.id, finishBonus, 0, 'テストかんそう')
-    earnedRef.current += finishBonus
     if (kind !== 'review') await deleteTestSession(profile.id, testKey)
+    if (kind === 'skip') {
+      const skip = findSkipTest(targetId)
+      const msg = perfect
+        ? `${profile.name}が ${skip?.levelLabel ?? ''}の とびきゅうテストに 合格しました！（${correct}/${finalItems.length}問）`
+        : `${profile.name}が ${skip?.levelLabel ?? ''}の とびきゅうテストに ちょうせんしました（${correct}/${finalItems.length}問正解）`
+      await addActivity(profile.id, profile.name, 'termTest', msg)
+    }
     if (kind === 'term') {
       const msg = perfect
         ? `${profile.name}が ${title}で 100点を とりました！（${correct}/${finalItems.length}問）`
         : `${profile.name}が ${title}で さいこうきろくに ちょうせんしました（${correct}/${finalItems.length}問正解）`
       await addActivity(profile.id, profile.name, 'termTest', msg)
     }
-    let perfectBonus = 0
-    if (perfect && kind !== 'review') {
-      perfectBonus = kind === 'term' ? GAME_CONFIG.coins.termTestPerfectBonus : GAME_CONFIG.coins.stageTestPerfectBonus
-      const reward = await awardStudy(profile.id, perfectBonus, 0, 'ぜんもんせいかいボーナス')
-      if (reward.expEvents) evoQueueRef.current.push(reward.expEvents)
-      earnedRef.current += perfectBonus
+    if (kind === 'skip') {
+      // 落ちても点数に応じてコインが入る（1問ごとの分はテスト中にもう入っている）。
+      // 20問書いて何ももらえないと、もう受けなくなるため。
+      const S = GAME_CONFIG.skipTest
+      const breakdown: CoinBreakdownItem[] = [{ label: `せいかい ${correct}問`, value: S.perCorrect * correct }]
+      let extra = 0
+      if (correct >= S.goodThreshold) {
+        extra += S.goodBonus
+        breakdown.push({ label: `${S.goodThreshold}問いじょう ボーナス`, value: S.goodBonus })
+      }
+      if (correct >= S.greatThreshold) {
+        extra += S.greatBonus
+        breakdown.push({ label: `${S.greatThreshold}問いじょう ボーナス`, value: S.greatBonus })
+      }
+      if (firstPass) {
+        extra += S.passBonus
+        breakdown.push({ label: '★ ごうかく ボーナス ★', value: S.passBonus })
+      }
+      if (extra > 0) {
+        const reward = await awardStudy(profile.id, extra, 0, firstPass ? 'とびきゅう ごうかく' : 'とびきゅうテスト')
+        if (reward.expEvents) evoQueueRef.current.push(reward.expEvents)
+        earnedRef.current += extra
+      }
+      setResultCoins({ amount: earnedRef.current, breakdown })
+    } else {
+      // かんそうボーナス（点数に関係なく「最後までできた」を肯定する。仕様 §23）
+      const finishBonus = kind === 'term' ? GAME_CONFIG.coins.termTestFinishBonus : GAME_CONFIG.coins.stageTestFinishBonus
+      await awardStudy(profile.id, finishBonus, 0, 'テストかんそう')
+      earnedRef.current += finishBonus
+      let perfectBonus = 0
+      if (perfect && kind !== 'review') {
+        perfectBonus = kind === 'term' ? GAME_CONFIG.coins.termTestPerfectBonus : GAME_CONFIG.coins.stageTestPerfectBonus
+        const reward = await awardStudy(profile.id, perfectBonus, 0, 'ぜんもんせいかいボーナス')
+        if (reward.expEvents) evoQueueRef.current.push(reward.expEvents)
+        earnedRef.current += perfectBonus
+      }
+      setResultCoins({
+        amount: earnedRef.current,
+        breakdown: [
+          { label: `せいかい ${correct}問`, value: perCorrectCoins * correct },
+          { label: 'かんそうボーナス', value: finishBonus },
+          { label: 'ぜんもんせいかいボーナス', value: perfectBonus },
+        ],
+      })
     }
-    setResultCoins({
-      amount: earnedRef.current,
-      breakdown: [
-        { label: `せいかい ${correct}問`, value: perCorrectCoins * correct },
-        { label: 'かんそうボーナス', value: finishBonus },
-        { label: 'ぜんもんせいかいボーナス', value: perfectBonus },
-      ],
-    })
     const after = await masteredWordCount(profile.id)
     const fresh = await getProfile(profile.id)
     if (fresh && startMasteredRef.current != null) await checkMilestones(fresh, startMasteredRef.current, after)
@@ -268,7 +313,7 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
     setPhase('done')
     if (perfect) {
       setBuddyMood('celebrate')
-      if (kind === 'term') {
+      if (isLong) {
         setShowCelebration(true) // playGrandはセレブレーション側で鳴る
       } else {
         playPerfect()
@@ -364,7 +409,9 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
       setItemsBoth(newItems)
       await applyWordOutcome(profile.id, wordId, result, { context: kind === 'review' ? 'review' : 'test' })
       // 答えを見た・不正解のまま進んだ単語は「わからなかった単語」へ（どのテストかも記録。仕様 §22）
-      await addUnknownWord(profile.id, wordId, result === 'unknown' ? 'unknown' : 'wrong', kind)
+      // わからなかった単語の出どころ。とびきゅうテストは長いテストなので term に寄せる
+      const unknownSource: 'stage' | 'term' | 'review' = kind === 'stage' ? 'stage' : kind === 'review' ? 'review' : 'term'
+      await addUnknownWord(profile.id, wordId, result === 'unknown' ? 'unknown' : 'wrong', unknownSource)
       await persistSession(ids, index + 1, newItems)
       bumpData()
       setWrong(null)
@@ -456,10 +503,17 @@ export function TestRunner({ kind, targetId, wordIds: baseIds, title, backRoute,
             </div>
             {kind === 'review' && <p className="termtest-status">ふくしゅうを がんばったから <b>コインを ゲット！</b></p>}
             <div className="result-rate">せいとうりつ {rate}%</div>
-            {resultCoins && !(kind === 'term' && perfect && showCelebration) && (
+            {resultCoins && !(isLong && perfect && showCelebration) && (
               <CoinReward amount={resultCoins.amount} breakdown={resultCoins.breakdown} />
             )}
-            {!perfect && kind !== 'review' && (
+            {!perfect && kind === 'skip' && (
+              <p className="termtest-status">
+                <b>ごうかくまで あと{items.length - correct}問！</b>
+                <br />
+                とびきゅうテストは <b>ぜんぶ せいかい</b>で ごうかくだよ。何回でも うけられる！
+              </p>
+            )}
+            {!perfect && kind !== 'review' && kind !== 'skip' && (
               <p className="termtest-status">
                 <b>ぜんもんせいかいまで あと{items.length - correct}問！</b> もういちど ちょうせんしてみよう
               </p>

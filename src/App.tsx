@@ -17,7 +17,7 @@ import { AlphabetTest } from './screens/AlphabetTest'
 import { StageMap } from './screens/StageMap'
 import { TestsHub } from './screens/TestsHub'
 import { LearnFlow } from './screens/LearnFlow'
-import { StageTestScreen, TermTestScreen } from './screens/Tests'
+import { SkipTestScreen, StageTestScreen, TermTestScreen } from './screens/Tests'
 import { Review } from './screens/Review'
 import { UnknownList } from './screens/UnknownList'
 import { MyWords } from './screens/MyWords'
@@ -61,6 +61,8 @@ function RouteView({ route }: { route: Route }) {
       return <StageTestScreen stageId={route.stageId} />
     case 'termTest':
       return <TermTestScreen termId={route.termId} />
+    case 'skipTest':
+      return <SkipTestScreen skipId={route.skipId} />
     case 'review':
       return <Review mode={route.mode} wordIds={route.wordIds} />
     case 'unknownList':
@@ -110,6 +112,7 @@ export default function App() {
       'learn',
       'stageTest',
       'termTest',
+      'skipTest',
       'review',
       'diaryEdit',
       'pencilDiag',

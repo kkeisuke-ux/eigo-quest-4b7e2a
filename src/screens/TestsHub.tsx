@@ -3,7 +3,17 @@
 // 4ステージ（最大20問）ごとの通し番号テスト「まとめテスト N」に分割した。
 // レベルタブつき（れんしゅう一覧とタブ選択を共有。第21回のstageMapLevelを利用）。
 import { useState } from 'react'
-import { LEVELS, TERM_TESTS, playableLevels } from '../data/words'
+import {
+  LEVELS,
+  SKIP_TESTS,
+  TERM_TESTS,
+  bestClearLevelLabel,
+  passedSkipLevels,
+  perfectStageIds,
+  playableLevels,
+  stageClearLevelLabel,
+} from '../data/words'
+import { GAME_CONFIG } from '../config/gameConfig'
 import { useAsyncData } from '../state/hooks'
 import { navigate, useAppState } from '../state/store'
 import { getSetting, getTestSession, listTestResults, listWordProgress, putSetting } from '../storage/repo'
@@ -59,7 +69,40 @@ export function TestsHub() {
         hasSession: session != null && session.currentIndex > 0,
       })
     }
-    return { list, activeId: active.id }
+    // とびきゅうテスト（第40回）。このレベルぶん1本
+    const skip = SKIP_TESTS.find((t) => t.levelId === active.id) ?? null
+    const skipRuns = skip ? data.results.filter((r) => r.kind === 'skip' && r.targetId === skip.id) : []
+    const skipBest = skipRuns.reduce<{ correct: number; total: number } | null>(
+      (b, r) => (!b || r.correct > b.correct ? { correct: r.correct, total: r.total } : b),
+      null
+    )
+    const skipPassed = skipRuns.some((r) => r.total > 0 && r.correct === r.total)
+    // 5問テストでこのレベルをぜんぶ埋めてある場合も通過ずみ（とびきゅうを受ける必要がない）
+    const stagePerfect = perfectStageIds(data.results)
+    const stagesOfLevel = active.terms.flatMap((t) => t.stages)
+    const filledByStages = stagesOfLevel.length > 0 && stagesOfLevel.every((st) => stagePerfect.has(st.id))
+    const skipSession = skip ? await getTestSession(profileId, `skip:${skip.id}`) : null
+    // 第40回でレベルの数え方を「下から積み上げ」に変えた。以前の数え方の記録も残しておく
+    const levelLabel = stageClearLevelLabel(stagePerfect, passedSkipLevels(data.results))
+    const bestLabel = bestClearLevelLabel(stagePerfect)
+    return {
+      list,
+      activeId: active.id,
+      levelLabel,
+      bestLabel,
+      skip: skip
+        ? {
+            id: skip.id,
+            label: skip.label,
+            levelLabel: skip.levelLabel,
+            best: skipBest,
+            passed: skipPassed,
+            filledByStages,
+            tries: skipRuns.length,
+            hasSession: skipSession != null && skipSession.currentIndex > 0,
+          }
+        : null,
+    }
   }, [profileId, data, levelId])
 
   if (!data || !entries) return <LoadingView />
@@ -85,6 +128,65 @@ export function TestsHub() {
           ))}
         </div>
         <p className="tile-sub map-note">1つの テストは さいだい20問。もんだいは まいかい ランダムに でるよ</p>
+        {/* レベルの数え方が変わったことのおしらせ（第40回）。前の記録も消さずに残す */}
+        {entries.bestLabel && entries.bestLabel !== entries.levelLabel && (
+          <p className="tile-sub map-note">
+            いまの レベルは <b>{entries.levelLabel ?? 'まだなし'}</b>。
+            これまでの さいこう記録は <b>{entries.bestLabel}</b> だよ（きろくは のこしてあるよ）
+          </p>
+        )}
+        {/* とびきゅうテスト（第40回）。小1相当から順に積まなくても、ここに合格すれば先へ進める */}
+        {entries.skip && (
+          <Card
+            className={`termtest-card skiptest-card ${
+              entries.skip.passed || entries.skip.filledByStages ? 'termtest-card-perfect' : ''
+            }`}
+          >
+            <div className="termtest-head">
+              <span className="termtest-title">
+                {(entries.skip.passed || entries.skip.filledByStages) && <span className="crown">🎖️</span>}
+                {entries.skip.label}
+              </span>
+              <span
+                className={`stage-clear ${entries.skip.passed || entries.skip.filledByStages ? '' : 'stage-clear-zero'}`}
+              >
+                {entries.skip.passed || entries.skip.filledByStages ? 'みとめずみ' : 'みとめ まえ'}
+              </span>
+            </div>
+            {entries.skip.filledByStages && !entries.skip.passed ? (
+              <p className="termtest-status termtest-status-perfect">
+                このレベルは 5もんテストで ぜんぶ 100点。もう みとめずみだよ！
+              </p>
+            ) : entries.skip.passed ? (
+              <p className="termtest-status termtest-status-perfect">
+                ごうかく！ このレベルは とばして 先に すすめるよ
+              </p>
+            ) : (
+              <>
+                <p className="tile-sub">
+                  {entries.skip.levelLabel}の ことばから <b>ランダムに{GAME_CONFIG.skipTest.questionCount}問</b>。
+                  <b>ぜんぶ せいかい</b>で ごうかく。何回でも うけられるよ
+                </p>
+                <p className="tile-sub">
+                  ごうかくすると、このレベルを <b>1つずつ やらなくても</b> レベルが 先に すすむよ
+                </p>
+                {entries.skip.best && (
+                  <p className="termtest-status">
+                    さいこう {entries.skip.best.correct}/{entries.skip.best.total}問（{entries.skip.tries}回 ちょうせん）　—　
+                    <b>ごうかくまで あと{entries.skip.best.total - entries.skip.best.correct}問！</b>
+                  </p>
+                )}
+                {entries.skip.hasSession && <p className="stage-resume">とちゅうの きろくあり（つづきから できるよ）</p>}
+              </>
+            )}
+            <Button
+              variant={entries.skip.passed || entries.skip.filledByStages ? 'secondary' : 'accent'}
+              onClick={() => navigate({ name: 'skipTest', skipId: entries.skip!.id })}
+            >
+              {entries.skip.passed || entries.skip.filledByStages ? 'もういちど ためす' : 'とびきゅうに ちょうせん！'}
+            </Button>
+          </Card>
+        )}
         {entries.list.map((e) => (
           <Card key={e.id} className={`termtest-card ${e.perfectCount > 0 ? 'termtest-card-perfect' : ''}`}>
             <div className="termtest-head">

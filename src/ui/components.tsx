@@ -3,7 +3,13 @@ import { useState, type ReactNode } from 'react'
 import { navigate, useAppState, type Route } from '../state/store'
 import { expToNextLevel, normalizeOwned } from '../game/logic'
 import { getSpecies } from '../data/species'
-import { perfectStageIds, perfectTermTestIds, stageClearLevelLabel } from '../data/words'
+import {
+  extraClearedTermCount,
+  passedSkipLevels,
+  perfectStageIds,
+  perfectTermTestIds,
+  stageClearLevelLabel,
+} from '../data/words'
 import { CharacterSprite } from '../game/sprites'
 import { useAsyncData } from '../state/hooks'
 import { alphabetMasteryCounts, getOwned, getProfile, listTestResults } from '../storage/repo'
@@ -23,12 +29,17 @@ export function StatusChips() {
     if (buddy) normalizeOwned(buddy)
     const [results, alpha] = await Promise.all([listTestResults(profileId), alphabetMasteryCounts(profileId)])
     const termPerfectCount = perfectTermTestIds(results).size
-    // 到達レベル（ステージテスト100点が全部そろっている いちばん上の学期。第25回）
-    const levelLabel = stageClearLevelLabel(perfectStageIds(results))
+    // 到達レベル（第25回、第40回でルール変更）。下のレベルから積み上がったところまで。
+    // とびきゅうテスト合格ぶんも積み上げに数える
+    const perfect = perfectStageIds(results)
+    const skipped = passedSkipLevels(results)
+    const levelLabel = stageClearLevelLabel(perfect, skipped)
+    const extraCleared = extraClearedTermCount(perfect, skipped)
     return {
       coins: p.coins,
       stars: p.stars,
       levelLabel,
+      extraCleared,
       // 称号=たっせい数（アルファベットごうかく＋まとめ100点。第22回）
       termPerfectCount: rankCountFor(termPerfectCount, alpha.upper, alpha.lower),
       buddy: buddy && getSpecies(buddy.speciesId) ? { speciesId: buddy.speciesId, stage: buddy.stage, level: buddy.level } : null,
@@ -41,8 +52,14 @@ export function StatusChips() {
       <RankChip perfectCount={data.termPerfectCount} onClick={() => setShowRanks(true)} />
       <RankListModal open={showRanks} perfectCount={data.termPerfectCount} onClose={() => setShowRanks(false)} />
       {data.levelLabel && (
-        <span className="badge level-chip" title="テスト100点が ぜんぶ そろっている ところまでのレベル">
+        <span className="badge level-chip" title="下のレベルから じゅんばんに そろったところまでが レベル。とびきゅうテストに ごうかくすると 先に すすむよ">
           Lv {data.levelLabel}
+        </span>
+      )}
+      {/* 先のレベルを先に クリアしているぶん（レベルには まだ入らない。第40回） */}
+      {data.extraCleared > 0 && (
+        <span className="badge level-chip level-chip-extra" title="レベルより 先の 学期を クリアしたかず。とびきゅうテストに ごうかくすると レベルに 入るよ">
+          ほかに {data.extraCleared}
         </span>
       )}
       <CoinBadge coins={data.coins} />

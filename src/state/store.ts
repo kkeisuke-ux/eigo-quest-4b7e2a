@@ -15,6 +15,7 @@ export type Route =
   | { name: 'stageTest'; stageId: string }
   | { name: 'tests' }
   | { name: 'termTest'; termId: string }
+  | { name: 'skipTest'; skipId: string }
   | { name: 'review'; mode: 'due' | 'unknown'; wordIds?: string[] }
   | { name: 'unknownList' }
   | { name: 'myWords' }
